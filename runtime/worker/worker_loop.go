@@ -13,26 +13,36 @@ import (
 )
 
 type Worker struct {
-	ID       string
-	queue    <-chan *types.RequestContext
-	results  chan<- *types.RequestContext
-	errors   chan<- types.KernelEvent
-	policy   *policy.PolicyEngine
-	executor *executor.TimeoutWrapper
-	logger   func(types.LogEntry)
-	pipeline *Pipeline
+	ID         string
+	queue      <-chan *types.RequestContext
+	results    chan<- *types.RequestContext
+	errors     chan<- types.KernelEvent
+	policy     *policy.PolicyEngine
+	executor   *executor.TimeoutWrapper
+	logger     func(types.LogEntry)
+	pipeline   *Pipeline
+	supervisor *WorkerSupervisor
+	health     *WorkerHealth
+	heartbeat  time.Duration
 }
 
 func (w *Worker) Run(ctx context.Context) {
+	w.health.MarkAlive()
+	ticker := time.NewTicker(w.heartbeat)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-ticker.C:
+			w.health.MarkAlive()
 		case reqCtx, ok := <-w.queue:
 			if !ok {
 				return
 			}
 			w.processOne(ctx, reqCtx)
+			w.health.IncrementRequests()
 		}
 	}
 }
@@ -42,6 +52,7 @@ func (w *Worker) processOne(ctx context.Context, reqCtx *types.RequestContext) {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
 			log.Printf("[WORKER_PANIC] worker=%s request=%s panic=%v\n%s", w.ID, reqCtx.RequestID, r, string(stack))
+			w.health.MarkDegraded(fmt.Sprintf("panic: %v", r))
 			reqCtx.Finalize(types.StatusError, fmt.Sprintf("worker panic: %v", r), "WORKER_PANIC")
 			w.results <- reqCtx
 		}

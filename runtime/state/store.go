@@ -1,6 +1,7 @@
 package state
 
 import (
+	"os"
 	"path/filepath"
 	"time"
 
@@ -35,10 +36,12 @@ type MetaRecord struct {
 }
 
 func NewStateStore(root string) *StateStore {
-	return &StateStore{
+	ss := &StateStore{
 		root:   root,
 		writer: NewAtomicWriter(),
 	}
+	os.MkdirAll(filepath.Join(root, "snapshots"), 0755)
+	return ss
 }
 
 func (ss *StateStore) SaveTrace(ctx *types.RequestContext) error {

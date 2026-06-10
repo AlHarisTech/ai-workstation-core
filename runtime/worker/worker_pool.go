@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/AlHarisTech/ai-workstation-core/runtime/executor"
 	"github.com/AlHarisTech/ai-workstation-core/runtime/policy"
@@ -11,8 +12,9 @@ import (
 )
 
 type WorkerPool struct {
-	workers []*Worker
-	wg      sync.WaitGroup
+	workers    []*Worker
+	wg         sync.WaitGroup
+	supervisor *WorkerSupervisor
 }
 
 func NewWorkerPool(
@@ -25,20 +27,27 @@ func NewWorkerPool(
 	logger func(types.LogEntry),
 	registry ToolRegistry,
 ) *WorkerPool {
+	supervisor := NewWorkerSupervisor()
 	pool := &WorkerPool{
-		workers: make([]*Worker, count),
+		workers:    make([]*Worker, count),
+		supervisor: supervisor,
 	}
 
 	for i := 0; i < count; i++ {
+		id := fmt.Sprintf("wrk_%03d", i)
+		health := supervisor.Register(id)
 		pool.workers[i] = &Worker{
-			ID:       fmt.Sprintf("wrk_%03d", i),
-			queue:    queue,
-			results:  results,
-			errors:   errors,
-			policy:   policyEngine,
-			executor: exec,
-			logger:   logger,
-			pipeline: NewPipeline(registry),
+			ID:         id,
+			queue:      queue,
+			results:    results,
+			errors:     errors,
+			policy:     policyEngine,
+			executor:   exec,
+			logger:     logger,
+			pipeline:   NewPipeline(registry),
+			supervisor: supervisor,
+			health:     health,
+			heartbeat:  5 * time.Second,
 		}
 	}
 
@@ -61,4 +70,8 @@ func (wp *WorkerPool) Wait() {
 
 func (wp *WorkerPool) WorkerCount() int {
 	return len(wp.workers)
+}
+
+func (wp *WorkerPool) Supervisor() *WorkerSupervisor {
+	return wp.supervisor
 }

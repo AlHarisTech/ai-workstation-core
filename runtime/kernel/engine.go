@@ -15,26 +15,6 @@ import (
 	"github.com/AlHarisTech/ai-workstation-core/runtime/worker"
 )
 
-type KernelEngine struct {
-	config     KernelConfig
-	queue      *queue.RequestQueue
-	pool       *worker.WorkerPool
-	policy     *policy.PolicyEngine
-	executor   *executor.TimeoutWrapper
-	stateStore *state.StateStore
-	logger     *observability.StructuredLogger
-	tracer     *observability.Tracer
-	metrics    *observability.Metrics
-	lifecycle  *Lifecycle
-
-	// Core channels (§2.1)
-	requestChan    chan *types.RequestContext
-	resultChan     chan *types.RequestContext
-	errorChan      chan types.KernelEvent
-	shutdownChan   chan struct{}
-	stateWriteChan chan *types.RequestContext
-}
-
 type SimpleRegistry struct{}
 
 func (sr *SimpleRegistry) GetTool(toolID string) (*types.ToolDef, error) {
@@ -56,7 +36,48 @@ func (sr *SimpleRegistry) GetTool(toolID string) (*types.ToolDef, error) {
 	return nil, fmt.Errorf("tool not found: %s", toolID)
 }
 
-func NewKernelEngine(cfg KernelConfig) (*KernelEngine, error) {
+type HardeningConfig struct {
+	HeartbeatInterval time.Duration
+	SnapshotInterval  time.Duration
+	MaxRestartCount   int
+	FairQueueEnabled  bool
+	CompactionMaxAge  time.Duration
+}
+
+func DefaultHardeningConfig() HardeningConfig {
+	return HardeningConfig{
+		HeartbeatInterval: 5 * time.Second,
+		SnapshotInterval:  60 * time.Second,
+		MaxRestartCount:   3,
+		FairQueueEnabled:  false,
+		CompactionMaxAge:  24 * time.Hour,
+	}
+}
+
+type KernelEngine struct {
+	config        KernelConfig
+	harden        HardeningConfig
+	queue         *queue.RequestQueue
+	fairQueue     *queue.FairQueue
+	pool          *worker.WorkerPool
+	policy        *policy.PolicyEngine
+	executor      *executor.TimeoutWrapper // keep for compatibility
+	stateStore    *state.StateStore
+	logger        *observability.StructuredLogger
+	tracer        *observability.Tracer
+	metrics       *observability.KernelMetrics
+	lifecycle     *Lifecycle
+
+	resultChan     chan *types.RequestContext
+	errorChan      chan types.KernelEvent
+	stateWriteChan chan *types.RequestContext
+
+	ingestStopped   bool
+	drainComplete   bool
+	shutdownStarted time.Time
+}
+
+func NewKernelEngine(cfg KernelConfig, harden HardeningConfig) (*KernelEngine, error) {
 	if cfg.WorkerCount <= 0 {
 		cfg.WorkerCount = 4
 	}
@@ -82,9 +103,8 @@ func NewKernelEngine(cfg KernelConfig) (*KernelEngine, error) {
 	resultChan := make(chan *types.RequestContext, cfg.QueueSize)
 	errorChan := make(chan types.KernelEvent, 64)
 	stateWriteChan := make(chan *types.RequestContext, cfg.QueueSize)
-	shutdownChan := make(chan struct{})
 
-	policyEngine := policy.NewPolicyEngine(policy.DefaultRules(), "0.4.1")
+	policyEngine := policy.NewPolicyEngine(policy.DefaultRules(), "0.5.0")
 	reg := &SimpleRegistry{}
 	execCore := executor.NewExecutionCore(reg)
 	timeoutWrapper := executor.NewTimeoutWrapper(execCore, 30*time.Second)
@@ -100,25 +120,21 @@ func NewKernelEngine(cfg KernelConfig) (*KernelEngine, error) {
 		reg,
 	)
 
-	tracer := observability.NewTracer()
-	metrics := observability.NewMetrics()
-	lifecycle := NewLifecycle()
-
 	return &KernelEngine{
 		config:         cfg,
+		harden:         harden,
 		queue:          reqQueue,
+		fairQueue:      queue.NewFairQueue(cfg.QueueSize),
 		pool:           pool,
 		policy:         policyEngine,
 		executor:       timeoutWrapper,
 		stateStore:     state.NewStateStore(statePath),
 		logger:         logger,
-		tracer:         tracer,
-		metrics:        metrics,
-		lifecycle:      lifecycle,
-		requestChan:    nil,
+		tracer:         observability.NewTracer(),
+		metrics:        observability.NewKernelMetrics(),
+		lifecycle:      NewLifecycle(),
 		resultChan:     resultChan,
 		errorChan:      errorChan,
-		shutdownChan:   shutdownChan,
 		stateWriteChan: stateWriteChan,
 	}, nil
 }
@@ -135,11 +151,18 @@ func (ke *KernelEngine) Start() {
 	go ke.collectResults()
 	go ke.collectErrors()
 	go ke.stateWriter()
+	go ke.metricsEmitter()
+	if ke.harden.SnapshotInterval > 0 {
+		go ke.snapshotGenerator()
+	}
 }
 
 func (ke *KernelEngine) Ingest(raw json.RawMessage) error {
-	ke.metrics.RequestsIngressed.Add(1)
-	ke.tracer.TraceRequestIngress("ingress")
+	if ke.ingestStopped {
+		return fmt.Errorf("INGEST_STOPPED: shutdown in progress")
+	}
+
+	ke.metrics.Ingressed.Add(1)
 
 	var req types.RawRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
@@ -170,45 +193,89 @@ func (ke *KernelEngine) Ingest(raw json.RawMessage) error {
 	ke.tracer.TraceQueueEnqueue(ctx.RequestID)
 
 	if err := ke.queue.Enqueue(ctx); err != nil {
-		ke.metrics.RequestsRejected.Add(1)
+		ke.metrics.Rejected.Add(1)
 		ke.metrics.QueueDepth.Add(-1)
 		ke.tracer.TraceQueueReject(ctx.RequestID)
 		return err
 	}
 
-	ke.metrics.RequestsEnqueued.Add(1)
+	ke.metrics.Enqueued.Add(1)
 	return nil
 }
 
-func (ke *KernelEngine) Shutdown() {
+func (ke *KernelEngine) GracefulShutdown() {
+	ke.shutdownStarted = time.Now()
+
+	ke.logger.Log(types.LogEntry{
+		Status:    "shutdown_phase_1_stop_ingestion",
+		Timestamp: time.Now(),
+	})
+	ke.ingestStopped = true
+
 	ke.lifecycle.GracefulShutdown()
-	time.Sleep(300 * time.Millisecond)
+
+	ke.logger.Log(types.LogEntry{
+		Status:    "shutdown_phase_2_drain_queue",
+		Timestamp: time.Now(),
+	})
+	drainWait := 500 * time.Millisecond
+	deadline := time.Now().Add(drainWait)
+	for ke.queue.Size() > 0 && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
 	ke.queue.Close()
+
+	ke.logger.Log(types.LogEntry{
+		Status:    "shutdown_phase_3_wait_workers",
+		Timestamp: time.Now(),
+	})
 	ke.pool.Wait()
+
+	ke.logger.Log(types.LogEntry{
+		Status:   "shutdown_phase_4_flush_state",
+		Timestamp: time.Now(),
+	})
 	close(ke.resultChan)
 	close(ke.errorChan)
 	close(ke.stateWriteChan)
+
+	snap, _ := ke.stateStore.GenerateSnapshot(
+		ke.pool.Supervisor().AllHealth(),
+		ke.metrics.Snapshot(),
+	)
+	if snap != nil {
+		ke.logger.Log(types.LogEntry{
+			Status:    "shutdown_snapshot",
+			Timestamp: time.Now(),
+		})
+	}
+
 	ke.logger.Log(types.LogEntry{
-		Status:    "kernel_stopped",
+		Status:    "shutdown_phase_5_complete",
 		Timestamp: time.Now(),
 	})
 	ke.logger.Close()
 }
 
+func (ke *KernelEngine) Shutdown() {
+	ke.GracefulShutdown()
+}
+
 func (ke *KernelEngine) collectResults() {
 	for ctx := range ke.resultChan {
 		ke.metrics.QueueDepth.Add(-1)
-		if ctx.Status == types.StatusSuccess {
-			ke.metrics.RequestsCompleted.Add(1)
-		} else if ctx.Status == types.StatusError {
-			ke.metrics.RequestsDenied.Add(1)
-			ke.metrics.ExecutionsFailed.Add(1)
-		} else {
-			ke.metrics.RequestsDenied.Add(1)
+		switch ctx.Status {
+		case types.StatusSuccess:
+			ke.metrics.Completed.Add(1)
+		case types.StatusDenied:
+			ke.metrics.Denied.Add(1)
+		case types.StatusError:
+			ke.metrics.Failed.Add(1)
 		}
 		response, _ := json.Marshal(ctx)
 		fmt.Println(string(response))
 
+		ke.metrics.Cycles.Add(1)
 		ke.stateWriteChan <- ctx
 	}
 }
@@ -226,12 +293,78 @@ func (ke *KernelEngine) stateWriter() {
 	}
 }
 
+func (ke *KernelEngine) metricsEmitter() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ke.lifecycle.Context().Done():
+			return
+		case <-ticker.C:
+			ke.emitMetricsCycle()
+		}
+	}
+}
+
+func (ke *KernelEngine) emitMetricsCycle() {
+	health := ke.pool.Supervisor().FailureSummary()
+	snap := ke.metrics.Snapshot()
+
+	entry := types.LogEntry{
+		Status:    "metrics_cycle",
+		Timestamp: time.Now(),
+	}
+	payload := map[string]interface{}{
+		"metrics":       snap,
+		"worker_health": health,
+		"queue_depth":   ke.queue.Size(),
+		"queue_max":     ke.queue.MaxSize(),
+	}
+	data, _ := json.Marshal(payload)
+	entry.Error = string(data)
+	ke.logger.Log(entry)
+}
+
+func (ke *KernelEngine) snapshotGenerator() {
+	ticker := time.NewTicker(ke.harden.SnapshotInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ke.lifecycle.Context().Done():
+			ke.stateStore.GenerateSnapshot(
+				ke.pool.Supervisor().AllHealth(),
+				ke.metrics.Snapshot(),
+			)
+			return
+		case <-ticker.C:
+			ke.stateStore.GenerateSnapshot(
+				ke.pool.Supervisor().AllHealth(),
+				ke.metrics.Snapshot(),
+			)
+		}
+	}
+}
+
 func (ke *KernelEngine) collectErrors() {
 	for evt := range ke.errorChan {
 		ke.tracer.TraceEvent(evt)
 	}
 }
 
-func (ke *KernelEngine) Queue() *queue.RequestQueue      { return ke.queue }
-func (ke *KernelEngine) Metrics() *observability.Metrics  { return ke.metrics }
-func (ke *KernelEngine) Tracer() *observability.Tracer    { return ke.tracer }
+func (ke *KernelEngine) ReplayHistory() (*state.ReplayResult, error) {
+	return ke.stateStore.ReplayHistory()
+}
+
+func (ke *KernelEngine) CompactTraces(olderThan time.Duration) (int, error) {
+	return ke.stateStore.CompactTraces(olderThan)
+}
+
+func (ke *KernelEngine) Supervisor() *worker.WorkerSupervisor {
+	return ke.pool.Supervisor()
+}
+
+func (ke *KernelEngine) Queue() *queue.RequestQueue  { return ke.queue }
+func (ke *KernelEngine) Metrics() *observability.KernelMetrics { return ke.metrics }
+func (ke *KernelEngine) Tracer() *observability.Tracer        { return ke.tracer }

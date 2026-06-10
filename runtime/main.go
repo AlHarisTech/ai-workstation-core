@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/AlHarisTech/ai-workstation-core/runtime/kernel"
 )
 
 func main() {
 	cfg := kernel.DefaultConfig()
+	harden := kernel.DefaultHardeningConfig()
 
 	if root := os.Getenv("AI_WORKSTATION_ROOT"); root != "" {
 		cfg.WorkspaceRoot = root
@@ -25,8 +27,16 @@ func main() {
 	if q := os.Getenv("AI_QUEUE_SIZE"); q != "" {
 		fmt.Sscanf(q, "%d", &cfg.QueueSize)
 	}
+	if h := os.Getenv("AI_HEARTBEAT_SEC"); h != "" {
+		var sec int
+		fmt.Sscanf(h, "%d", &sec)
+		harden.HeartbeatInterval = time.Duration(sec) * time.Second
+	}
+	if os.Getenv("AI_FAIR_QUEUE") == "1" {
+		harden.FairQueueEnabled = true
+	}
 
-	engine, err := kernel.NewKernelEngine(cfg)
+	engine, err := kernel.NewKernelEngine(cfg, harden)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `{"status":"fatal","error":"%s"}`+"\n", err.Error())
 		os.Exit(1)
@@ -53,5 +63,5 @@ func main() {
 		}
 	}
 
-	engine.Shutdown()
+	engine.GracefulShutdown()
 }
