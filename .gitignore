@@ -30,7 +30,7 @@ Thumbs.db
 
 # Logs
 *.log
-/ai/governance/audit/*.log
+.ai/governance/audit/*.log
 
 # Python
 __pycache__/

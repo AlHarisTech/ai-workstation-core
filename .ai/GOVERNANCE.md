@@ -79,10 +79,47 @@ The AI Engineering Workstation is a **Project-Agnostic AI Infrastructure Platfor
 
 ---
 
-## 5. Compliance
+## 5. Runtime Execution Principles (v0.2.0)
+
+These principles govern all runtime code under `/runtime/`.
+
+### 5.1 Execution-First Architecture
+- No abstraction may exist without a runtime implementation.
+- Every registry entry (`definitions.yaml`) must have a corresponding handler in `LocalExecutor.HANDLERS`.
+- Drift between registry declarations and handler mapping is a CRITICAL governance violation.
+
+### 5.2 Fail-Closed in Execution
+- Session validation: missing `session_id` or `project_id` → reject immediately, do not proceed.
+- Path access: denied paths (`/etc/`, `/proc/`, `.ai/config/secrets/`) → reject before I/O.
+- Unknown tools: tool not in registry → return `TOOL_NOT_FOUND`, never crash.
+- Invalid JSON: malformed input → return `PARSE_ERROR`, never crash.
+
+### 5.3 Deterministic Logging
+- Every request must produce exactly one audit log entry.
+- Log entries always include: `request_id`, `session_id`, `project_id`, `tool_id`, `status`, `execution_result`, `timestamp`.
+- Log is append-only. No rotation, no truncation in v0.2.0.
+
+### 5.4 Minimal Surface
+- v0.2.0 uses `stdio` (stdin/stdout) for transport. No network listeners.
+- v0.2.0 uses local function execution. No containers, no subprocesses for tool execution.
+- Python standard library only, except `pyyaml` for registry loading.
+
+### 5.5 Pipeline Order (Enforced)
+The gateway MUST process requests in this order:
+```
+Parse JSON → Route (resolve tool_id) → Check Tool Exists
+  → Validate Session (if tool requires) → Execute Tool
+  → Assemble Response → Log Audit → Emit Response
+```
+Deviation from this order is a MEDIUM governance violation.
+
+---
+
+## 6. Compliance
 
 - All changes to `.ai/` require an ADR entry.
 - All ADRs must document Forbidden Alternatives and Failure Modes Prevented.
 - Platform changes must not break existing project `.ai.yaml` configurations.
-- Every new tool type must be registered with capability declarations.
+- Every new tool added to `definitions.yaml` must have a handler in `LocalExecutor.HANDLERS`.
+- Every tool handler must return `{"status": "success"|"error", ...}` — never raise.
 - Governance audit runs must pass before platform changes are accepted.

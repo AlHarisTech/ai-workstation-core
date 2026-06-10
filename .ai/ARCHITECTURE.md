@@ -1230,7 +1230,58 @@ audit_entry:
 
 ---
 
-## 13. Expansion Points
+## 13. MCP Gateway Execution Mapping (v0.2.0)
+
+> **Runtime truth alignment.** This section maps the architectural design (§3) to the actual runtime implementation at `/runtime/mcp_gateway/`.
+
+### 13.1 Runtime-to-Architecture Mapping
+
+| Architecture Concept | Runtime Implementation | File |
+|---|---|---|
+| Gateway Pipeline (Auth→Route→Session→Execute→Audit) | `handle_request()` + `handle_method()` | `runtime/mcp_gateway/main.py` |
+| Tool Registry | `ToolRegistry` loading from `definitions.yaml` | `runtime/tools/registry.py` |
+| Capability Routing | `find_first_by_capability()` | `runtime/tools/registry.py` |
+| Session Validation | `SessionValidator.validate()` — fail-closed | `runtime/session/session_validator.py` |
+| Local Function Execution | `LocalExecutor.execute()` — no containers | `runtime/executor/local_executor.py` |
+| Append-Only Audit Log | `StructuredLogger.log()` — JSON lines | `runtime/logging/structured_logger.py` |
+
+### 13.2 Gateway Pipeline (Runtime)
+
+```
+stdin → parse JSON → route (resolve tool_id) → validate session (if required)
+     → execute tool → assemble response → log audit → stdout
+```
+
+Every response includes: `id`, `status`, `tool_id`, `routing`, `session`, `execution`, `result`, `error`.
+
+### 13.3 Runtime Startup
+
+```bash
+python3 runtime/mcp_gateway/main.py
+```
+
+Reads JSON requests from stdin. Writes JSON responses to stdout. Deterministic startup flow:
+1. Load tool definitions from `runtime/tools/definitions.yaml`
+2. Initialize registry, validator, executor, logger
+3. Signal readiness
+4. Enter request processing loop
+
+### 13.4 Execution Backend
+
+v0.2.0 uses **local function execution** only. Each tool handler is a Python method on `LocalExecutor`. No subprocesses. No containers. No orchestration.
+
+Handler mapping is in `LocalExecutor.HANDLERS` — a 1:1 correspondence with tools in `definitions.yaml`. Drift between registry and handler map is a CRITICAL governance violation.
+
+### 13.5 Runtime Truth Alignment Notes
+
+- Architecture §3.5 specifies Unix socket gateway. v0.2.0 uses stdio for MVP simplicity. Unix socket is deferred to a future minor release.
+- Architecture §3.4 specifies 8-stage pipeline. v0.2.0 implements 4 stages (Route → Session → Execute → Audit) — sufficient for the local-only scope.
+- Architecture §4 specifies 12 tool definitions. v0.2.0 implements 8 executable tools with local handlers.
+- Session validation (§7) implements REQUIRED_FIELDS check and session expiry. Full state machine (Pending→Active→Suspend→Close→Archived) deferred to Phase 4.
+
+---
+
+## 14. Expansion Points
 
 | Area | Future Direction | Trigger |
 |---|---|---|
@@ -1249,7 +1300,7 @@ audit_entry:
 
 ---
 
-## 14. Key Tradeoffs
+## 15. Key Tradeoffs
 
 | Decision | Tradeoff | Rationale |
 |---|---|---|
@@ -1262,7 +1313,7 @@ audit_entry:
 
 ---
 
-## 15. Architectural Decision Record Index
+## 16. Architectural Decision Record Index
 
 Decisions about this platform architecture are recorded in `.ai/ADR_LOG.md` following the same format as project-level ADRs.
 

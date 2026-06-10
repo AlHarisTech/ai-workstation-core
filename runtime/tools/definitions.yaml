@@ -1,0 +1,124 @@
+# AI Workstation — Tool Registry Definitions (v0.2.0)
+# This file is the authoritative source of truth for available tools.
+# The YAML registry must match the runtime handler mapping in local_executor.py.
+# Drift between registry and executor is a CRITICAL governance violation.
+
+registry:
+  version: "0.2.0"
+  tools:
+    - id: "echo"
+      name: "Echo"
+      type: "built-in"
+      version: "1.0"
+      description: "Returns input arguments unchanged. Used for connectivity testing."
+      capabilities:
+        - "echo"
+      protocol: "local-function"
+      governance:
+        require_session: false
+        audit_level: "none"
+
+    - id: "filesystem_read"
+      name: "Filesystem Reader"
+      type: "built-in"
+      version: "1.0"
+      description: "Reads and returns the contents of a file at the given path."
+      capabilities:
+        - "file-read"
+      protocol: "local-function"
+      governance:
+        require_session: true
+        audit_level: "summary"
+      security:
+        workspace_scoped: true
+        deny_paths:
+          - "/etc/**"
+          - "/proc/**"
+          - ".ai/config/secrets/**"
+
+    - id: "filesystem_write"
+      name: "Filesystem Writer"
+      type: "built-in"
+      version: "1.0"
+      description: "Writes content to a file at the given path."
+      capabilities:
+        - "file-write"
+      protocol: "local-function"
+      governance:
+        require_session: true
+        audit_level: "full"
+      security:
+        workspace_scoped: true
+        deny_paths:
+          - "/etc/**"
+          - "/proc/**"
+          - ".ai/config/secrets/**"
+
+    - id: "git_status"
+      name: "Git Status"
+      type: "built-in"
+      version: "1.0"
+      description: "Returns the git working tree status."
+      capabilities:
+        - "git.status"
+        - "git-status"
+      protocol: "local-function"
+      governance:
+        require_session: true
+        audit_level: "summary"
+
+    - id: "fetch_url"
+      name: "URL Fetcher"
+      type: "built-in"
+      version: "1.0"
+      description: "Fetches content from a given HTTP/HTTPS URL."
+      capabilities:
+        - "http-fetch"
+        - "fetch"
+      protocol: "local-function"
+      governance:
+        require_session: false
+        audit_level: "summary"
+      security:
+        allowed_schemes:
+          - "https"
+          - "http"
+
+    - id: "memory_store"
+      name: "Memory Store"
+      type: "built-in"
+      version: "1.0"
+      description: "Stores a key-value pair in the workstation memory."
+      capabilities:
+        - "memory.store"
+        - "memory-store"
+      protocol: "local-function"
+      governance:
+        require_session: true
+        audit_level: "summary"
+
+    - id: "memory_retrieve"
+      name: "Memory Retrieve"
+      type: "built-in"
+      version: "1.0"
+      description: "Retrieves a value from the workstation memory by key."
+      capabilities:
+        - "memory.retrieve"
+        - "memory-retrieve"
+      protocol: "local-function"
+      governance:
+        require_session: true
+        audit_level: "summary"
+
+    - id: "session_create"
+      name: "Session Create"
+      type: "built-in"
+      version: "1.0"
+      description: "Creates a new session context."
+      capabilities:
+        - "session.create"
+        - "session-create"
+      protocol: "local-function"
+      governance:
+        require_session: false
+        audit_level: "summary"

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] — 2026-06-10
+
+### Added
+
+- **MCP Gateway runtime** — stdio-based gateway process (`runtime/mcp_gateway/main.py`) with full request pipeline: Parse → Route → Session Validate → Execute → Audit
+- **Tool Registry runtime** — YAML-driven tool registry (`runtime/tools/registry.py`) with capability-based lookup and in-memory state
+- **Session validation layer** — fail-closed validator (`runtime/session/session_validator.py`) enforcing session_id and project_id requirements
+- **Local execution adapter** — 8 tool handlers for local function execution (echo, filesystem_read, filesystem_write, git_status, fetch_url, memory_store, memory_retrieve, session_create)
+- **Structured logging** — append-only JSON audit log (`runtime/logging/structured_logger.py`) with full lifecycle trace per request
+- **Tool definitions** — YAML registry (`runtime/tools/definitions.yaml`) with 8 registered tools, capabilities, and governance metadata
+
+### Changed
+
+- `.ai/ARCHITECTURE.md` — Added §13: MCP Gateway Execution Mapping and Runtime Truth Alignment notes
+- `.ai/GOVERNANCE.md` — Added §5: Runtime Execution Principles (execution-first, fail-closed, deterministic logging, minimal surface, pipeline order)
+- `.ai/ADR_LOG.md` — Added ADR-005: MCP Gateway Runtime Implementation
+- `.gitignore` — Added `.ai/governance/audit/*.log` exclusion
+
+---
+
 ## [0.1.0] — 2026-06-10
 
 ### Added
