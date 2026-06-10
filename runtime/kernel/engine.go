@@ -188,10 +188,20 @@ func (ke *KernelEngine) collectResults() {
 		ke.metrics.QueueDepth.Add(-1)
 		if ctx.Status == types.StatusSuccess {
 			ke.metrics.RequestsCompleted.Add(1)
+		} else if ctx.Status == types.StatusError {
+			ke.metrics.RequestsDenied.Add(1)
+			ke.metrics.ExecutionsFailed.Add(1)
 		} else {
 			ke.metrics.RequestsDenied.Add(1)
 		}
-		_ = ke.state.SaveTrace(ctx)
+		if err := ke.state.SaveTraceWithRetry(ctx); err != nil {
+			ke.logger.Log(types.LogEntry{
+				RequestID: ctx.RequestID,
+				Status:    "STATE_WRITE_FAILED",
+				Error:     err.Error(),
+				Timestamp: time.Now(),
+			})
+		}
 		response, _ := json.Marshal(ctx)
 		fmt.Println(string(response))
 	}

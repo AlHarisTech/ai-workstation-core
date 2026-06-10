@@ -42,6 +42,18 @@ func NewStateStore(root string) *StateStore {
 }
 
 func (ss *StateStore) SaveTrace(ctx *types.RequestContext) error {
+	return ss.saveTraceInternal(ctx, false)
+}
+
+func (ss *StateStore) SaveTraceWithRetry(ctx *types.RequestContext) error {
+	if err := ss.saveTraceInternal(ctx, false); err != nil {
+		_ = ss.saveTraceInternal(ctx, true)
+		return err
+	}
+	return nil
+}
+
+func (ss *StateStore) saveTraceInternal(ctx *types.RequestContext, retry bool) error {
 	record := TraceRecord{
 		RequestID:        ctx.RequestID,
 		Status:           string(ctx.Status),
