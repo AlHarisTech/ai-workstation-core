@@ -19,56 +19,85 @@ const (
 )
 
 type ReleaseEntry struct {
-	ReleaseID   string        `json:"release_id"`
-	CommitSHA   string        `json:"commit_sha"`
-	Version     string        `json:"version"`
-	RepoOwner   string        `json:"repo_owner"`
-	RepoName    string        `json:"repo_name"`
-	ReleaseNotes string       `json:"release_notes"`
-	Status      ReleaseStatus `json:"status"`
-	Retry       RetryState    `json:"retry"`
-	CreatedAt   int64         `json:"created_at"`
-	UpdatedAt   int64         `json:"updated_at"`
-	LastError   string        `json:"last_error,omitempty"`
+	ReleaseID      string        `json:"release_id"`
+	CommitSHA      string        `json:"commit_sha"`
+	Version        string        `json:"version"`
+	RepoOwner      string        `json:"repo_owner"`
+	RepoName       string        `json:"repo_name"`
+	ReleaseNotes   string        `json:"release_notes"`
+	Status         ReleaseStatus `json:"status"`
+	Retry          RetryState    `json:"retry"`
+	IdempotencyKey string        `json:"idempotency_key"`
+	CreatedAt      int64         `json:"created_at"`
+	UpdatedAt      int64         `json:"updated_at"`
+	LastError      string        `json:"last_error,omitempty"`
 }
 
 type ReleaseQueue struct {
-	mu      sync.Mutex
-	entries []ReleaseEntry
-	notify  func(mcpobs.TraceEvent)
+	mu          sync.Mutex
+	entries     []ReleaseEntry
+	notify      func(mcpobs.TraceEvent)
+	persistPath string
 }
 
-func NewReleaseQueue(notify func(mcpobs.TraceEvent)) *ReleaseQueue {
-	return &ReleaseQueue{
-		entries: make([]ReleaseEntry, 0),
-		notify:  notify,
+func NewReleaseQueue(notify func(mcpobs.TraceEvent), persistPath string) *ReleaseQueue {
+	q := &ReleaseQueue{
+		entries:     make([]ReleaseEntry, 0),
+		notify:      notify,
+		persistPath: persistPath,
 	}
+	_ = q.recover()
+	return q
+}
+
+func (q *ReleaseQueue) recover() error {
+	entries, err := LoadQueue(q.persistPath)
+	if err != nil {
+		return err
+	}
+	for i := range entries {
+		if entries[i].Status == StatusPendingExternal || entries[i].Status == StatusQueued {
+			entries[i].Status = StatusPendingExternal
+		}
+	}
+	q.entries = entries
+	return nil
+}
+
+func (q *ReleaseQueue) persist() {
+	if q.persistPath == "" {
+		return
+	}
+	_ = PersistQueue(q.entries, q.persistPath)
 }
 
 func (q *ReleaseQueue) Enqueue(input ReleaseInput, owner, repo string) ReleaseEntry {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
+	key := IdempotencyKey(input.CommitSHA, input.Version)
 	entry := ReleaseEntry{
-		ReleaseID:    input.Version + "@" + truncateSHA(input.CommitSHA, 8),
-		CommitSHA:    input.CommitSHA,
-		Version:      input.Version,
-		RepoOwner:    owner,
-		RepoName:     repo,
-		ReleaseNotes: input.ReleaseNotes,
-		Status:       StatusPendingExternal,
-		Retry:        NewRetryState(input.CommitSHA, input.Version),
-		CreatedAt:    time.Now().UnixMilli(),
-		UpdatedAt:    time.Now().UnixMilli(),
+		ReleaseID:      input.Version + "@" + truncateSHA(input.CommitSHA, 8),
+		CommitSHA:      input.CommitSHA,
+		Version:        input.Version,
+		RepoOwner:      owner,
+		RepoName:       repo,
+		ReleaseNotes:   input.ReleaseNotes,
+		Status:         StatusPendingExternal,
+		Retry:          NewRetryState(input.CommitSHA, input.Version),
+		IdempotencyKey: key,
+		CreatedAt:      time.Now().UnixMilli(),
+		UpdatedAt:      time.Now().UnixMilli(),
 	}
 
 	q.entries = append(q.entries, entry)
+	q.persist()
 
 	if q.notify != nil {
 		q.notify(mcpobs.TraceEvent{
-			Type:    mcpobs.EventReleaseQueued,
-			Detail:  entry.ReleaseID,
-			Status:  string(entry.Status),
+			Type:      mcpobs.EventReleaseQueued,
+			Detail:    entry.ReleaseID,
+			Status:    string(entry.Status),
 			Timestamp: time.Now().UnixMilli(),
 		})
 	}
@@ -84,6 +113,7 @@ func (q *ReleaseQueue) Dequeue() (ReleaseEntry, bool) {
 		if e.Status == StatusPendingExternal || (e.Status == StatusQueued && IsRetryDue(e.Retry)) {
 			q.entries[i].Status = StatusPublishing
 			q.entries[i].UpdatedAt = time.Now().UnixMilli()
+			q.persist()
 			return q.entries[i], true
 		}
 	}
@@ -109,6 +139,7 @@ func (q *ReleaseQueue) Complete(releaseID string, success bool, errMsg string) {
 				}
 			}
 			q.entries[i].UpdatedAt = time.Now().UnixMilli()
+			q.persist()
 			return
 		}
 	}

@@ -69,6 +69,29 @@ type createTagResponse struct {
 	SHA string `json:"sha"`
 }
 
+func (gb *GitHubBridge) TagExists(tagName string) bool {
+	resp, err := gb.do("GET", fmt.Sprintf("/git/refs/tags/%s", tagName), nil)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == 200
+}
+
+func (gb *GitHubBridge) ReleaseExists(tagName string) (string, bool) {
+	resp, err := gb.do("GET", fmt.Sprintf("/releases/tags/%s", tagName), nil)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", false
+	}
+	var result createReleaseResponse
+	json.NewDecoder(resp.Body).Decode(&result)
+	return result.HTMLURL, true
+}
+
 func (gb *GitHubBridge) CreateTag(tagName, commitSHA string) (string, error) {
 	body := createTagRequest{
 		Tag:     tagName,

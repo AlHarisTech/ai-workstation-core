@@ -9,25 +9,42 @@ import (
 )
 
 type ReleaseOrchestrator struct {
-	github *GitHubBridge
-	queue  *ReleaseQueue
-	notify func(mcpobs.TraceEvent)
-	owner  string
-	repo   string
+	github    *GitHubBridge
+	queue     *ReleaseQueue
+	idempotent *IdempotencyStore
+	notify    func(mcpobs.TraceEvent)
+	owner     string
+	repo      string
+	persistPath string
 }
 
 func NewReleaseOrchestrator(token, repoOwner, repoName string, notify func(mcpobs.TraceEvent)) *ReleaseOrchestrator {
-	return &ReleaseOrchestrator{
-		github: NewGitHubBridge(token, repoOwner, repoName),
-		queue:  NewReleaseQueue(notify),
-		notify: notify,
-		owner:  repoOwner,
-		repo:   repoName,
+	persistPath := ".ai/state/release_queue.json"
+	ro := &ReleaseOrchestrator{
+		github:      NewGitHubBridge(token, repoOwner, repoName),
+		queue:       NewReleaseQueue(notify, persistPath),
+		idempotent:  NewIdempotencyStore(),
+		notify:      notify,
+		owner:       repoOwner,
+		repo:        repoName,
+		persistPath: persistPath,
 	}
+	// Recover idempotency store from disk
+	store, err := LoadIdempotencyStore("")
+	if err == nil && len(store) > 0 {
+		for k := range store {
+			ro.idempotent.Mark(k)
+		}
+	}
+	return ro
 }
 
 func (ro *ReleaseOrchestrator) Queue() *ReleaseQueue {
 	return ro.queue
+}
+
+func (ro *ReleaseOrchestrator) IdempotencyStore() *IdempotencyStore {
+	return ro.idempotent
 }
 
 func (ro *ReleaseOrchestrator) Name() string { return "mcp-release-orchestrator" }
@@ -117,10 +134,18 @@ func (ro *ReleaseOrchestrator) ProcessQueue() int {
 			break
 		}
 
-		input := ReleaseInput{
-			Version:      entry.Version,
-			CommitSHA:    entry.CommitSHA,
-			ReleaseNotes: entry.ReleaseNotes,
+		// Idempotency check: skip if already completed
+		if ro.idempotent.Exists(entry.IdempotencyKey) {
+			if url, ok := ro.github.ReleaseExists(entry.Version); ok {
+				ro.emit(mcpobs.TraceEvent{
+					Type:      mcpobs.EventReleaseExternalRecovered,
+					Detail:    url,
+					Timestamp: time.Now().UnixMilli(),
+				})
+				ro.queue.Complete(entry.ReleaseID, true, "")
+				processed++
+				continue
+			}
 		}
 
 		if err := ro.github.ValidateAccess(); err != nil {
@@ -134,17 +159,47 @@ func (ro *ReleaseOrchestrator) ProcessQueue() int {
 			continue
 		}
 
-		releaseURL, err := ro.github.CreateRelease(input.Version, input.CommitSHA, input.ReleaseNotes)
-		if err != nil {
+		// GitHub dedup: check if tag already exists
+		if ro.github.TagExists(entry.Version) {
+			// Tag exists — skip creation, try release
+		} else {
+			_, err := ro.github.CreateTag(entry.Version, entry.CommitSHA)
+			if err != nil {
+				ro.emit(mcpobs.TraceEvent{
+					Type:      mcpobs.EventReleaseRetryScheduled,
+					Detail:    entry.ReleaseID,
+					Error:     err.Error(),
+					Timestamp: time.Now().UnixMilli(),
+				})
+				ro.queue.Complete(entry.ReleaseID, false, err.Error())
+				continue
+			}
 			ro.emit(mcpobs.TraceEvent{
-				Type:      mcpobs.EventReleaseRetryScheduled,
-				Detail:    entry.ReleaseID,
-				Error:     err.Error(),
+				Type:      mcpobs.EventReleaseTagCreated,
+				Detail:    entry.Version,
 				Timestamp: time.Now().UnixMilli(),
 			})
-			ro.queue.Complete(entry.ReleaseID, false, err.Error())
-			continue
 		}
+
+		// Check if release already exists
+		releaseURL, exists := ro.github.ReleaseExists(entry.Version)
+		if !exists {
+			var err error
+			releaseURL, err = ro.github.CreateRelease(entry.Version, entry.CommitSHA, entry.ReleaseNotes)
+			if err != nil {
+				ro.emit(mcpobs.TraceEvent{
+					Type:      mcpobs.EventReleaseRetryScheduled,
+					Detail:    entry.ReleaseID,
+					Error:     err.Error(),
+					Timestamp: time.Now().UnixMilli(),
+				})
+				ro.queue.Complete(entry.ReleaseID, false, err.Error())
+				continue
+			}
+		}
+
+		ro.idempotent.Mark(entry.IdempotencyKey)
+		_ = PersistCompletedEntry(entry.IdempotencyKey, "")
 
 		ro.emit(mcpobs.TraceEvent{
 			Type:      mcpobs.EventReleaseExternalRecovered,
