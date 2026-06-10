@@ -1343,7 +1343,48 @@ Decisions about this platform architecture are recorded in `.ai/ADR_LOG.md` foll
 | ADR-002 | Unix Socket Gateway over TCP | Proposed |
 | ADR-003 | Per-Project ChromaDB Namespaces | Proposed |
 | ADR-004 | Session-Scoped Tool Injection | Proposed |
+| ADR-005 | MCP Gateway Runtime Implementation (v0.2.0) | Accepted |
+| ADR-006 | Deterministic Control Plane Kernel (v0.3.0) | Accepted |
+| ADR-007 | Adaptive Runtime Kernel (v0.4.0) | Accepted |
+| ADR-008 | Compliance Verification & Evidence Layer (v0.6.1) | Accepted |
 
 ---
 
-*This architecture document is the authoritative specification for Phase 1 of the AI Engineering Workstation. Implementation must not deviate from this specification without an ADR.*
+### 17. Compliance Verification Layer (v0.6.1)
+
+The compliance layer validates all semantic guarantees defined in `.ai/SPEC.md` through measurable, reproducible evidence.
+
+#### 17.1 Verification Domains
+
+| Domain | Weight | Verifier |
+|---|---|---|
+| Fairness | 20 | `fairness_verifier.go` — starvation detection, bounded wait |
+| Replay | 25 | `replay_verifier.go` — execution hash/replay hash equality |
+| SLA | 20 | `sla_verifier.go` — p50/p95/p99 against contract thresholds |
+| Policy | 20 | `policy_verifier.go` — deny scenarios, bypass detection |
+| Shutdown | 15 | `shutdown_verifier.go` — queue drain, zero loss |
+
+#### 17.2 Certification Levels
+
+| Score | Level |
+|---|---|
+| 95–100 | Production Certified |
+| 85–94 | Production Ready |
+| 70–84 | Limited Production |
+| <70 | Non-Compliant |
+
+#### 17.3 Running Compliance Verification
+
+```bash
+go test -v ./runtime/compliance/
+```
+
+Output: Structured `ComplianceReport` JSON with scores, pass/fail per domain, and evidence traces.
+
+#### 17.4 Evidence Reproducibility
+
+All verifiers create isolated temporary workspaces. Tests are deterministic — same input produces identical compliance scores. Reports can be persisted to disk via `WriteComplianceReport()`.
+
+---
+
+*This architecture document is the authoritative specification for the AI Engineering Workstation. Implementation must not deviate from this specification without an ADR.*

@@ -17,6 +17,7 @@
 | ADR-005 | MCP Gateway Runtime Implementation (v0.2.0) | Accepted | 2026-06-10 |
 | ADR-006 | Deterministic Control Plane Kernel (v0.3.0) | Accepted | 2026-06-10 |
 | ADR-007 | Adaptive Runtime Kernel (v0.4.0) | Accepted | 2026-06-10 |
+| ADR-008 | Compliance Verification & Evidence Layer | Accepted | 2026-06-10 |
 
 ---
 
@@ -293,3 +294,54 @@ Establishes: **Queue depth and worker count are configurable, not hard-coded.** 
 - ADR-006: Deterministic Control Plane Kernel (v0.3.0 — predecessor)
 - ADR-005: MCP Gateway Runtime Implementation (v0.2.0)
 - ADR-003: Per-Project ChromaDB Namespaces
+
+---
+
+## ADR-008: Compliance Verification & Evidence Layer (v0.6.1)
+
+**Status:** Accepted
+**Date:** 2026-06-10
+**Author:** Staff Engineer
+
+### Context
+
+The kernel was feature-complete through v0.6.0 with semantic guarantees for fairness, replay, SLA, policy enforcement, and graceful shutdown. No mechanism existed to prove these guarantees hold at any given point in time. Compliance was asserted, not verified.
+
+### Decision
+
+Create a formal Compliance Verification & Proof Layer capable of validating all semantic guarantees through measurable, reproducible evidence:
+
+1. **5 Verifiers** — `FairnessVerifier`, `ReplayVerifier`, `SLAVerifier`, `PolicyVerifier`, `ShutdownVerifier` — each producing a structured compliance report.
+2. **Compliance Score Engine** — weighted scoring: Fairness 20, Replay 25, SLA 20, Policy 20, Shutdown 15 = 100 total.
+3. **Certification Levels** — Production Certified (95+), Production Ready (85+), Limited Production (70+), Non-Compliant (<70).
+4. **Evidence Reproducibility** — all verifiers create isolated temporary workspaces. Deterministic: same input → same score.
+5. **Compliance Reporter** — JSON output via `ComplianceReport` struct, persisted via `WriteComplianceReport()`.
+
+### Forbidden Alternatives
+- Manual verification (non-reproducible, not auditable)
+- Separate test framework (duplicate infrastructure)
+- Documentation-only compliance (not evidence-based)
+- Runtime compliance check (overhead on hot path; verification is offline)
+
+### Consequences
+- **Positive:** Provable guarantees, reproducible evidence, automated certification scoring
+- **Negative:** `compliance_test.go` produces output to stdout during tests (by design — evidence must be visible)
+
+### Failure Modes Prevented
+- Silent fairness violations (detected by starvation monitoring)
+- Replay divergence (execution hash mismatch caught)
+- SLA drift (p50/p95/p99 measured against contract thresholds)
+- Policy bypass (execution never occurs after DENY — verified)
+- Shutdown data loss (inflight == completed, zero lost)
+
+### Compliance
+- `go test -v ./runtime/compliance/` must pass all 5 domains
+- Any BYPASS in policy verifier → FAIL (MUST NOT pass)
+- Any request lost in shutdown verifier → FAIL
+- SLA violations exceeding thresholds → FAIL
+- Fairness max starvation > 30s → FAIL
+
+### Related
+- ADR-007: Adaptive Runtime Kernel (v0.4.0)
+- ADR-006: Deterministic Control Plane Kernel (v0.3.0)
+- `.ai/SPEC.md` §4-8 (semantic guarantees being verified)

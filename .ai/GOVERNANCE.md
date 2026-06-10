@@ -130,7 +130,13 @@ Every request carries a `RequestContext` with:
 - StateStore writes are atomic (temp file → rename). No partial writes.
 - Pipeline mode is per-request. OPTIMIZED_MODE still runs audit_log at end.
 
-### 5.7 Deterministic Logging (Enhanced)
+### 5.7 Proof-Driven Validation (v0.6.1)
+- All semantic guarantees MUST be verifiable through the compliance layer (`runtime/compliance/`).
+- Fairness, replay, SLA, policy, and shutdown guarantees are proven via automated verification.
+- Compliance score (0–100) determines certification level: Production Certified (95+), Production Ready (85–94), Limited Production (70–84), Non-Compliant (<70).
+- Evidence is reproducible: `go test -v ./runtime/compliance/`.
+- No guarantee may be asserted without verification evidence.
+
 - Every request produces exactly one audit log entry.
 - Log entries include: `execution_trace`, `decision_path`, `stage_timings`, `latency_breakdown`, `policy_decision_graph`, `queue_wait_time_ms`, `worker_id`.
 - Log is append-only. No rotation, no truncation in v0.4.0.
