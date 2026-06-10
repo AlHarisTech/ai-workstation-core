@@ -266,6 +266,7 @@ func (ke *KernelEngine) Shutdown() {
 }
 
 func (ke *KernelEngine) collectResults() {
+	defer func() { recover() }()
 	for ctx := range ke.resultChan {
 		ke.metrics.QueueDepth.Add(-1)
 
@@ -291,7 +292,10 @@ func (ke *KernelEngine) collectResults() {
 		fmt.Println(string(response))
 
 		ke.metrics.Cycles.Add(1)
-		ke.stateWriteChan <- ctx
+		select {
+		case ke.stateWriteChan <- ctx:
+		default:
+		}
 	}
 }
 
