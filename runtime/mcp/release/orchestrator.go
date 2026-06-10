@@ -2,6 +2,7 @@ package release
 
 import (
 	"context"
+	"os/exec"
 	"time"
 
 	mcpobs "github.com/AlHarisTech/ai-workstation-core/runtime/mcp/observability"
@@ -9,13 +10,14 @@ import (
 )
 
 type ReleaseOrchestrator struct {
-	github    *GitHubBridge
-	queue     *ReleaseQueue
-	idempotent *IdempotencyStore
-	notify    func(mcpobs.TraceEvent)
-	owner     string
-	repo      string
+	github      *GitHubBridge
+	queue       *ReleaseQueue
+	idempotent  *IdempotencyStore
+	notify      func(mcpobs.TraceEvent)
+	owner       string
+	repo        string
 	persistPath string
+	gitDir      string
 }
 
 func NewReleaseOrchestrator(token, repoOwner, repoName string, notify func(mcpobs.TraceEvent)) *ReleaseOrchestrator {
@@ -28,6 +30,7 @@ func NewReleaseOrchestrator(token, repoOwner, repoName string, notify func(mcpob
 		owner:       repoOwner,
 		repo:        repoName,
 		persistPath: persistPath,
+		gitDir:      ".",
 	}
 	// Recover idempotency store from disk
 	store, err := LoadIdempotencyStore("")
@@ -47,6 +50,10 @@ func (ro *ReleaseOrchestrator) IdempotencyStore() *IdempotencyStore {
 	return ro.idempotent
 }
 
+func (ro *ReleaseOrchestrator) SetGitDir(dir string) {
+	ro.gitDir = dir
+}
+
 func (ro *ReleaseOrchestrator) Name() string { return "mcp-release-orchestrator" }
 
 func (ro *ReleaseOrchestrator) Execute(ctx context.Context, req types.MCPRequest) (types.MCPResponse, error) {
@@ -60,19 +67,17 @@ func (ro *ReleaseOrchestrator) Execute(ctx context.Context, req types.MCPRequest
 		return ro.fail(req.ID, "RELEASE_INPUT_INVALID: version and commit_sha required", start)
 	}
 
-	// Phase 1: Create tag locally
 	tag := input.Version
-	tagSHA, err := ro.github.CreateTag(tag, input.CommitSHA)
-	if err != nil {
-		errMsg := "TAG_CREATION_FAILED: " + err.Error()
-		return ro.fail(req.ID, errMsg, start)
+
+	// Phase 1: Create local git tag (no GitHub needed)
+	if err := ro.createLocalTag(tag, input.CommitSHA); err != nil {
+		return ro.fail(req.ID, "TAG_CREATION_FAILED: "+err.Error(), start)
 	}
 
 	ro.emit(mcpobs.TraceEvent{Type: mcpobs.EventReleaseTagCreated, TraceID: traceID, SessionID: req.SessionID, Detail: tag, Timestamp: time.Now().UnixMilli()})
 
 	// Phase 2: Check external dependency availability
 	if err := ro.github.ValidateAccess(); err != nil {
-		// Transition to PENDING_EXTERNAL — not a failure
 		ro.emit(mcpobs.TraceEvent{
 			Type:    mcpobs.EventReleasePendingExternal,
 			TraceID: traceID, SessionID: req.SessionID,
@@ -104,11 +109,21 @@ func (ro *ReleaseOrchestrator) Execute(ctx context.Context, req types.MCPRequest
 		}, nil
 	}
 
-	// Phase 3: Create release on GitHub
-	releaseURL, err := ro.github.CreateRelease(tag, input.CommitSHA, input.ReleaseNotes)
-	if err != nil {
-		ro.github.DeleteTag(tag, tagSHA)
-		return ro.fail(req.ID, "RELEASE_CREATION_FAILED: "+err.Error(), start)
+	// Phase 3: GitHub tag publication (with dedup)
+	if !ro.github.TagExists(tag) {
+		if _, err := ro.github.CreateTag(tag, input.CommitSHA); err != nil {
+			return ro.fail(req.ID, "TAG_PUBLISH_FAILED: "+err.Error(), start)
+		}
+	}
+
+	// Phase 4: GitHub release creation (with dedup)
+	releaseURL, exists := ro.github.ReleaseExists(tag)
+	if !exists {
+		var err error
+		releaseURL, err = ro.github.CreateRelease(tag, input.CommitSHA, input.ReleaseNotes)
+		if err != nil {
+			return ro.fail(req.ID, "RELEASE_CREATION_FAILED: "+err.Error(), start)
+		}
 	}
 
 	ro.emit(mcpobs.TraceEvent{Type: mcpobs.EventReleasePublished, TraceID: traceID, SessionID: req.SessionID, Detail: releaseURL, Timestamp: time.Now().UnixMilli()})
@@ -124,6 +139,16 @@ func (ro *ReleaseOrchestrator) Execute(ctx context.Context, req types.MCPRequest
 			"release_url": releaseURL,
 		},
 	}, nil
+}
+
+func (ro *ReleaseOrchestrator) createLocalTag(tagName, commitSHA string) error {
+	out, _ := exec.Command("git", "-C", ro.gitDir, "tag", "-l", tagName).Output()
+	if len(out) > 0 {
+		return nil // tag already exists locally
+	}
+	msg := "Release " + tagName
+	cmd := exec.Command("git", "-C", ro.gitDir, "tag", "-a", tagName, commitSHA, "-m", msg)
+	return cmd.Run()
 }
 
 func (ro *ReleaseOrchestrator) ProcessQueue() int {
@@ -159,10 +184,11 @@ func (ro *ReleaseOrchestrator) ProcessQueue() int {
 			continue
 		}
 
-		// GitHub dedup: check if tag already exists
-		if ro.github.TagExists(entry.Version) {
-			// Tag exists — skip creation, try release
-		} else {
+		// Ensure local tag exists
+		_ = ro.createLocalTag(entry.Version, entry.CommitSHA)
+
+		// GitHub tag publication with dedup
+		if !ro.github.TagExists(entry.Version) {
 			_, err := ro.github.CreateTag(entry.Version, entry.CommitSHA)
 			if err != nil {
 				ro.emit(mcpobs.TraceEvent{
@@ -181,7 +207,7 @@ func (ro *ReleaseOrchestrator) ProcessQueue() int {
 			})
 		}
 
-		// Check if release already exists
+		// GitHub release with dedup
 		releaseURL, exists := ro.github.ReleaseExists(entry.Version)
 		if !exists {
 			var err error

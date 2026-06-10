@@ -46,7 +46,9 @@ func NewReleaseQueue(notify func(mcpobs.TraceEvent), persistPath string) *Releas
 		notify:      notify,
 		persistPath: persistPath,
 	}
-	_ = q.recover()
+	if persistPath != "" {
+		_ = q.recover()
+	}
 	return q
 }
 
