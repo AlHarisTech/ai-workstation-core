@@ -1352,6 +1352,42 @@ Decisions about this platform architecture are recorded in `.ai/ADR_LOG.md` foll
 
 ### 17. Compliance Verification Layer (v0.6.1)
 
+#### 17.5 Reality Validation Layer (v0.6.2)
+
+The reality validation layer extends compliance verification with CI automation, race detection, stress testing, and failure injection.
+
+| Domain | Weight | Verifier |
+|---|---|---|
+| CI Certification | 25 | `.github/workflows/ci.yml`, `compliance.yml`, `race.yml`, `validation.yml` |
+| Race Detection | 25 | `go test -race` on all non-compliance packages |
+| Stress Testing | 25 | 4 scenarios: 10/100/100/200 sessions × 100/1000/5000/10000 requests |
+| Failure Injection | 25 | 5 scenarios: QueueOverflow, ExecutionTimeout, PolicyDenial, ReplayCorruption, BypassAttempt |
+
+#### 17.6 Release Readiness Criteria
+
+| Score | Status |
+|---|---|
+| 95–100 | RELEASE_READY |
+| 85–94 | CONDITIONALLY_READY |
+| 70–84 | PRE_RELEASE |
+| <70 | NOT_READY |
+
+#### 17.7 CI Pipeline
+
+4 GitHub Actions workflows execute on every push:
+- `ci.yml` — build + vet + test
+- `compliance.yml` — compliance verification
+- `race.yml` — data race detection (excludes compliance for performance)
+- `validation.yml` — stress + failure injection
+
+#### 17.8 Running Validation
+
+```bash
+go test -v ./runtime/validation/...        # full suite
+go test -race ./runtime/...                # race detection
+go test -v ./runtime/compliance/           # compliance
+```
+
 The compliance layer validates all semantic guarantees defined in `.ai/SPEC.md` through measurable, reproducible evidence.
 
 #### 17.1 Verification Domains

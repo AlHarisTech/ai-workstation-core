@@ -135,6 +135,16 @@ Every request carries a `RequestContext` with:
 - Fairness, replay, SLA, policy, and shutdown guarantees are proven via automated verification.
 - Compliance score (0–100) determines certification level: Production Certified (95+), Production Ready (85–94), Limited Production (70–84), Non-Compliant (<70).
 - Evidence is reproducible: `go test -v ./runtime/compliance/`.
+
+### 5.7.1 Reality Validation (v0.6.2)
+- Release readiness is determined by 4-domain weighted scoring: CI (25), Race (25), Stress (25), Failure Injection (25).
+- Stress testing covers 4 scenarios up to 10,000 requests across 200 sessions.
+- Failure injection validates 5 scenarios: QueueOverflow, ExecutionTimeout, PolicyDenial, ReplayCorruption, BypassAttempt.
+- CI pipeline runs on every push via `.github/workflows/` (4 workflows).
+- No certification may be claimed without passing all 4 validation categories.
+- `RELEASE_READY` requires score ≥ 95. Lower scores demand remediation before v1.0.
+
+### 5.7.2 Deterministic Logging (Enhanced)
 - No guarantee may be asserted without verification evidence.
 
 - Every request produces exactly one audit log entry.

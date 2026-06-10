@@ -18,6 +18,7 @@
 | ADR-006 | Deterministic Control Plane Kernel (v0.3.0) | Accepted | 2026-06-10 |
 | ADR-007 | Adaptive Runtime Kernel (v0.4.0) | Accepted | 2026-06-10 |
 | ADR-008 | Compliance Verification & Evidence Layer | Accepted | 2026-06-10 |
+| ADR-009 | Reality Validation & Release Readiness Verification | Accepted | 2026-06-10 |
 
 ---
 
@@ -342,6 +343,52 @@ Create a formal Compliance Verification & Proof Layer capable of validating all 
 - Fairness max starvation > 30s → FAIL
 
 ### Related
+- ADR-008: Compliance Verification & Evidence Layer
 - ADR-007: Adaptive Runtime Kernel (v0.4.0)
+- `.ai/SPEC.md` §4-8
+
+---
+
+## ADR-009: Reality Validation & Release Readiness Verification (v0.6.2)
+
+**Status:** Accepted
+**Date:** 2026-06-10
+**Author:** Staff Engineer
+
+### Context
+Compliance verification (ADR-008) proved semantic guarantees hold under controlled conditions. Need to validate under real execution conditions: CI automation, race detection, stress testing, and failure injection. Without this, v1.0 readiness is unprovable.
+
+### Decision
+Create Reality Validation Layer:
+1. **CI Automation** — 4 GitHub Actions workflows (ci, compliance, race, validation) running on every push.
+2. **Race Detection** — `go test -race` on all non-compliance packages.
+3. **Stress Testing** — 4 scenarios up to 10,000 requests across 200 sessions.
+4. **Failure Injection** — 5 scenarios: QueueOverflow, ExecutionTimeout, PolicyDenial, ReplayCorruption, BypassAttempt.
+5. **Release Readiness Score** — 4×25 weighted scoring. ≥95 = RELEASE_READY.
+
+### Forbidden Alternatives
+- Manual validation (non-automated, not CI-enforceable)
+- Skipping race detection (unsafe for production)
+- Advisory-only scoring (must be gating, not advisory)
+- Separate validation repo (drift risk)
+
+### Consequences
+- **Positive:** Automated gating, race-safe guarantees, production stress proof, CI-enforceable release criteria
+- **Negative:** CI adds execution time (~3-5 min total across 4 workflows)
+
+### Failure Modes Prevented
+- Data race in production (caught by CI race detector)
+- Performance regression under load (caught by stress tests)
+- Silent failure injection bypass (caught by failure verifier)
+- Undocumented release readiness (caught by scoring system)
+
+### Compliance
+- All 4 CI workflows must pass before merge
+- Race detector must report zero races
+- All 5 failure injection scenarios must PASS
+- Release readiness score must be ≥ 95 for v1.0 eligibility
+
+### Related
+- ADR-008: Compliance Verification & Evidence Layer
 - ADR-006: Deterministic Control Plane Kernel (v0.3.0)
 - `.ai/SPEC.md` §4-8 (semantic guarantees being verified)

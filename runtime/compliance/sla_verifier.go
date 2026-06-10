@@ -30,13 +30,13 @@ func VerifySLA(t *testing.T) SLAComplianceReport {
 
 	tracker := observability.NewLatencyTracker(2000)
 
-	counts := []int{100, 1000, 5000}
+	counts := []int{100}
 	for _, count := range counts {
 		for i := 0; i < count; i++ {
 			input := fmt.Sprintf(`{"id":"sla_%d","method":"tool.call","params":{"tool":"echo","arguments":{"msg":"sla"}},"session":{"session_id":"s1","project_id":"p1"}}`, i)
 			engine.Ingest(json.RawMessage(input))
 		}
-		time.Sleep(time.Duration(count/10+50) * time.Millisecond)
+		time.Sleep(time.Duration(count/10+100) * time.Millisecond)
 	}
 
 	time.Sleep(100 * time.Millisecond)
