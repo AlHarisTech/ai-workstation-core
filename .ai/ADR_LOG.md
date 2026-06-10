@@ -15,6 +15,7 @@
 | ADR-003 | Per-Project ChromaDB Namespaces | Accepted | 2026-06-10 |
 | ADR-004 | Session-Scoped Tool Injection | Accepted | 2026-06-10 |
 | ADR-005 | MCP Gateway Runtime Implementation (v0.2.0) | Accepted | 2026-06-10 |
+| ADR-006 | Deterministic Control Plane Kernel (v0.3.0) | Accepted | 2026-06-10 |
 
 ---
 
@@ -182,3 +183,59 @@ Establishes: **Every registry entry must have a runtime handler.** Drift between
 - ADR-002: Unix Socket Gateway over TCP (deferred for v0.2.0 — stdio used instead)
 - ADR-003: Per-Project ChromaDB Namespaces (memory_store/retrieve use in-process dict, not ChromaDB)
 - ADR-004: Session-Scoped Tool Injection (session_create/validate implemented, tool scoping deferred)
+
+---
+
+## ADR-006: Deterministic Control Plane Kernel (v0.3.0)
+
+**Status:** Accepted
+**Date:** 2026-06-10
+**Author:** Staff Engineer
+
+### Context
+v0.2.0 gateway used ad-hoc linear execution with no formal pipeline, no governance runtime enforcement, no tool isolation, and minimal observability. The system needed to evolve from a prototype into a deterministic control plane kernel where every operation is traceable, enforcible, and isolated.
+
+### Decision
+Implement a deterministic control plane kernel with:
+1. **7-stage middleware pipeline** — PreValidation, SessionGuard, CapabilityRouting, PreExecution, Execution, PostValidation, AuditLog. Each stage explicit and independently measurable. DENY stops the pipeline.
+2. **RequestContext graph** — every request carries `execution_trace`, `decision_path`, `stage_timings`, and lifecycle timestamps.
+3. **Governance Enforcement Engine** — `PolicyEngine` loads 6 YAML-defined policies. Evaluated BEFORE execution. Runtime DENY blocks execution.
+4. **Tool isolation layer** — `execute_isolated()` wraps tools with `ThreadPoolExecutor` timeout. Timeout → `EXECUTION_TIMEOUT` envelope. Exception → `EXECUTION_ERROR` envelope. No cascade.
+5. **Registry versioning** — `SUPPORTED_VERSIONS` validates registry YAML at load time. Unsupportable versions → `IncompatibleRegistryVersionError` (fatal).
+6. **Enhanced observability** — audit log captures full execution_trace, decision_path, stage_timings, error_code.
+
+### Forbidden Alternatives
+- Inline pipeline stages in main.py (untestable, no stage-level metrics)
+- Governance as documentation-only (v0.2.0 state — no runtime enforcement)
+- No isolation (tool failure could crash gateway)
+- No version validation (silent registry incompatibility)
+- Monolithic request handling (no per-stage timing, no trace reconstruction)
+
+### Consequences
+- **Positive:** Deterministic pipeline, runtime governance enforcement, tool isolation, full traceability, backward-compatible registry loading
+- **Negative:** `runtime/logging/` renamed to `runtime/auditlog/` (stdlib collision). Stderr output no longer captured (pipeline handles errors internally).
+
+### Operational Reasoning
+The 7-stage pipeline provides deterministic ordering. Each stage is independently measurable — stage_timings reveal exactly where latency occurs. Governance enforcement is now runtime: POL-004 (path-access-control) blocks `/etc/passwd` reads at the PreExecution stage. Tool isolation prevents a misbehaving tool from crashing the gateway — timeout containment ensures gateway always remains responsive.
+
+### Failure Modes Prevented
+- Cascade failure: tool exception no longer crashes gateway (envelope containment)
+- Governance bypass: path deny list now enforced at PreExecution stage by PolicyEngine
+- Silent registry incompatibility: unknown versions reject at load time
+- Missing observability: full execution_trace reconstructable from audit log alone
+- Undetected mandatory field absence: PreValidation stage enforces request_id, session_id, project_id
+
+### Governance Implications
+Establishes: **Governance is runtime, not documentation.** Every policy in `runtime/governance/policies/runtime.yaml` is evaluated by `PolicyEngine` before the corresponding pipeline stage executes. DENY verdicts are terminal. Establishes pipeline order as a CRITICAL governance violation if deviated from.
+
+### Compliance
+- `runtime/governance/policies/runtime.yaml` must contain exactly 6 policies
+- All 7 pipeline stages must execute in order for every `tool.call` request
+- `execute_isolated()` must be used for all tool dispatch (never bare `execute()`)
+- Registry `.yaml` version must be validated at load time
+- Audit log entries must include `execution_trace`, `decision_path`, and `stage_timings`
+
+### Related
+- ADR-005: MCP Gateway Runtime Implementation (v0.2.0 — predecessor)
+- ADR-003: Per-Project ChromaDB Namespaces (memory_store/retrieve still in-process)
+- ADR-002: Unix Socket Gateway over TCP (still deferred — stdio used)

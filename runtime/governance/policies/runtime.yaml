@@ -1,0 +1,81 @@
+# AI Workstation — Runtime Governance Policies (v0.3.0)
+# Authoritative policy definitions loaded by the Governance Engine.
+# Every policy is evaluated BEFORE tool execution.
+# DENY verdicts stop the pipeline immediately.
+
+governance:
+  version: "0.3.0"
+  enforcement: "fail_closed"
+  description: "Runtime governance policies for MCP Gateway control plane"
+
+  policies:
+    - id: "POL-001"
+      name: "mandatory-context-fields"
+      description: "Every request MUST carry request_id, session_id, project_id"
+      enforcement: "hard"
+      priority: 10
+      stage: "pre_validation"
+      rule:
+        type: "field_presence"
+        required_fields:
+          - "request_id"
+          - "session_id"
+          - "project_id"
+        deny_message: "Missing mandatory context fields"
+
+    - id: "POL-002"
+      name: "tool-registry-existence"
+      description: "Requested tool MUST exist in the tool registry"
+      enforcement: "hard"
+      priority: 20
+      stage: "capability_routing"
+      rule:
+        type: "tool_exists"
+        deny_message: "Tool not found in registry"
+
+    - id: "POL-003"
+      name: "session-gate"
+      description: "Tools marked require_session MUST have a valid session context"
+      enforcement: "hard"
+      priority: 30
+      stage: "session_guard"
+      rule:
+        type: "session_required"
+        deny_message: "Valid session required for this tool"
+
+    - id: "POL-004"
+      name: "path-access-control"
+      description: "Filesystem tools MUST NOT access denied paths"
+      enforcement: "hard"
+      priority: 40
+      stage: "pre_execution"
+      rule:
+        type: "path_deny_list"
+        deny_prefixes:
+          - "/etc/"
+          - "/proc/"
+          - "/sys/"
+        deny_segments:
+          - ".ai/config/secrets"
+        deny_message: "Access denied for path"
+
+    - id: "POL-005"
+      name: "execution-timeout"
+      description: "Tool execution MUST NOT exceed the timeout boundary"
+      enforcement: "hard"
+      priority: 50
+      stage: "execution"
+      rule:
+        type: "timeout"
+        default_timeout_ms: 30000
+        deny_message: "Tool execution timed out"
+
+    - id: "POL-006"
+      name: "execution-isolation"
+      description: "Tool failure MUST NOT cascade — errors are contained in structured envelope"
+      enforcement: "hard"
+      priority: 60
+      stage: "post_validation"
+      rule:
+        type: "error_isolation"
+        deny_message: "Tool execution error"

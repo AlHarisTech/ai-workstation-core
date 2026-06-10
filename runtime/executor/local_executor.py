@@ -1,7 +1,12 @@
-"""AI Workstation — Local Function Execution Adapter
+"""AI Workstation — Local Function Execution Adapter (v0.3.0)
 
-Provides the ONLY execution backend for v0.2.0.
-All tools execute as local Python functions within the gateway process.
+Provides the ONLY execution backend. All tools execute as local Python
+functions within the gateway process.
+
+v0.3.0 adds tool isolation:
+  - Enforce timeout boundary per tool execution
+  - Isolate failures — no cascade failure
+  - Return structured error envelope on timeout/error
 
 No containers. No subprocesses. No orchestration.
 
@@ -10,6 +15,16 @@ Each tool handler:
   - Returns a dict with at least 'status' and 'result'.
   - Never raises — errors are captured in the result dict.
 """
+
+import json
+import os
+import subprocess
+import time
+import urllib.request
+import urllib.error
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+
+from tools.registry import ToolNotFoundError
 
 import json
 import os
@@ -103,6 +118,41 @@ class LocalExecutor:
                 error_trace=traceback.format_exc(),
                 duration_ms=round(duration_ms, 2),
             )
+
+    def execute_isolated(self, tool_id, arguments, session_context=None, timeout_ms=30000):
+        """Execute a tool with timeout isolation and cascade containment.
+
+        Wraps execute() in a thread with timeout enforcement.
+        On timeout: returns structured error with code EXECUTION_TIMEOUT.
+        On error:   returns structured error with code EXECUTION_ERROR.
+        Tool failure NEVER cascades to the gateway.
+        """
+        start = time.time()
+        timeout_seconds = timeout_ms / 1000.0
+
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"tool-{tool_id}") as pool:
+            future = pool.submit(self.execute, tool_id, arguments, session_context)
+            try:
+                result = future.result(timeout=timeout_seconds)
+                return result
+            except FuturesTimeoutError:
+                return {
+                    "status": "error",
+                    "result": None,
+                    "error": f"Tool execution timed out after {timeout_ms}ms",
+                    "error_code": "EXECUTION_TIMEOUT",
+                    "duration_ms": round((time.time() - start) * 1000, 2),
+                }
+            except Exception as e:
+                import traceback
+                return {
+                    "status": "error",
+                    "result": None,
+                    "error": str(e),
+                    "error_code": "EXECUTION_ERROR",
+                    "error_trace": traceback.format_exc(),
+                    "duration_ms": round((time.time() - start) * 1000, 2),
+                }
 
     @staticmethod
     def _error(message, error_trace=None, duration_ms=0.0):

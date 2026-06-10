@@ -79,39 +79,47 @@ The AI Engineering Workstation is a **Project-Agnostic AI Infrastructure Platfor
 
 ---
 
-## 5. Runtime Execution Principles (v0.2.0)
+## 5. Runtime Execution Principles (v0.3.0)
 
 These principles govern all runtime code under `/runtime/`.
 
-### 5.1 Execution-First Architecture
-- No abstraction may exist without a runtime implementation.
-- Every registry entry (`definitions.yaml`) must have a corresponding handler in `LocalExecutor.HANDLERS`.
-- Drift between registry declarations and handler mapping is a CRITICAL governance violation.
-
-### 5.2 Fail-Closed in Execution
-- Session validation: missing `session_id` or `project_id` → reject immediately, do not proceed.
-- Path access: denied paths (`/etc/`, `/proc/`, `.ai/config/secrets/`) → reject before I/O.
-- Unknown tools: tool not in registry → return `TOOL_NOT_FOUND`, never crash.
-- Invalid JSON: malformed input → return `PARSE_ERROR`, never crash.
-
-### 5.3 Deterministic Logging
-- Every request must produce exactly one audit log entry.
-- Log entries always include: `request_id`, `session_id`, `project_id`, `tool_id`, `status`, `execution_result`, `timestamp`.
-- Log is append-only. No rotation, no truncation in v0.2.0.
-
-### 5.4 Minimal Surface
-- v0.2.0 uses `stdio` (stdin/stdout) for transport. No network listeners.
-- v0.2.0 uses local function execution. No containers, no subprocesses for tool execution.
-- Python standard library only, except `pyyaml` for registry loading.
-
-### 5.5 Pipeline Order (Enforced)
-The gateway MUST process requests in this order:
+### 5.1 Middleware Pipeline (Enforced Order)
+The gateway MUST process tool.call requests through the 7-stage pipeline:
 ```
-Parse JSON → Route (resolve tool_id) → Check Tool Exists
-  → Validate Session (if tool requires) → Execute Tool
-  → Assemble Response → Log Audit → Emit Response
+PreValidation → SessionGuard → CapabilityRouting → PreExecution
+              → Execution → PostValidation → AuditLog
 ```
-Deviation from this order is a MEDIUM governance violation.
+Each stage returns `StageResult(decision="allow"|"deny")`. **DENY stops the pipeline immediately** (fail-closed). Deviation from this order is a CRITICAL governance violation.
+
+### 5.2 Governance Enforcement (Runtime, Not Documentation)
+- PolicyEngine loads 6 policies from `runtime/governance/policies/runtime.yaml` at startup.
+- Every policy is evaluated BEFORE the corresponding pipeline stage executes.
+- DENY verdicts terminate the pipeline — execution never begins after a policy denial.
+- All policy decisions are logged (policy_id, decision, reason).
+
+### 5.3 Tool Isolation
+- `execute_isolated()` wraps every tool call with timeout and cascade containment.
+- Timeout: default 30s. Exceeded → `EXECUTION_TIMEOUT` error envelope. Tool thread abandoned.
+- Exception: caught and wrapped in `EXECUTION_ERROR` error envelope. Stack trace preserved.
+- **Tool failure MUST NOT cascade to the gateway.** Gateway always remains responsive.
+
+### 5.4 Registry Versioning
+- `SUPPORTED_VERSIONS` in `ToolRegistry` defines compatible registry YAML versions.
+- Loading an unsupported version raises `IncompatibleRegistryVersionError` → gateway fatal.
+- No silent forward-incompatible registries. No breaking changes without version validation.
+
+### 5.5 Request Context Graph
+Every request carries a `RequestContext` with mandatory fields:
+- `request_id`, `session_id`, `project_id` (all required by POL-001)
+- `execution_trace`: ordered array of `StageResult` objects
+- `decision_path`: ordered list of stage names visited
+- `stage_timings`: dict[stage_name, ms duration]
+- `timestamp_start` / `timestamp_end`: lifecycle boundaries
+
+### 5.6 Deterministic Logging (Enhanced)
+- Every request produces exactly one audit log entry.
+- Log entries include: `execution_trace` (full stage history), `decision_path`, `stage_timings`, `error_code`.
+- Log is append-only. No rotation, no truncation in v0.3.0.
 
 ---
 

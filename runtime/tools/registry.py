@@ -35,20 +35,35 @@ class ToolNotFoundError(Exception):
     """Raised when a tool is requested but not found in the registry."""
 
 
+class IncompatibleRegistryVersionError(RegistryLoadError):
+    """Raised when the registry version is not supported by this loader."""
+
+
 class ToolRegistry:
     """In-memory tool registry backed by YAML definitions.
+
+    Supports versioned registry loading with backward compatibility.
+    Registry version is validated at load time.
 
     Usage:
         registry = ToolRegistry()
         registry.load()
         tool = registry.get_tool("filesystem_read")
         found = registry.find_by_capability("file-read")
+
+    Versioning:
+        SUPPORTED_VERSIONS lists compatible registry YAML versions.
+        Attempting to load an unsupported version raises
+        IncompatibleRegistryVersionError.
     """
+
+    SUPPORTED_VERSIONS = ["0.2.0", "0.3.0"]
 
     def __init__(self, yaml_path=None):
         self._yaml_path = yaml_path or self._resolve_yaml_path()
         self._tools = {}
         self._capability_index = {}
+        self._registry_version = None
 
     @staticmethod
     def _resolve_yaml_path():
@@ -61,7 +76,14 @@ class ToolRegistry:
         )
 
     def load(self):
-        """Load and index all tools from the YAML definitions file."""
+        """Load and index all tools from the YAML definitions file.
+
+        Validates registry version compatibility before loading tools.
+        Raises IncompatibleRegistryVersionError if version is unsupported.
+
+        Returns:
+            int: number of tools loaded.
+        """
         if not os.path.isfile(self._yaml_path):
             raise RegistryLoadError(f"Registry file not found: {self._yaml_path}")
 
@@ -70,6 +92,14 @@ class ToolRegistry:
 
         if not data or "registry" not in data:
             raise RegistryLoadError("Invalid registry YAML: missing 'registry' key")
+
+        version = data["registry"].get("version", "unknown")
+        if version not in self.SUPPORTED_VERSIONS:
+            raise IncompatibleRegistryVersionError(
+                f"Registry version '{version}' is not supported. "
+                f"Supported versions: {self.SUPPORTED_VERSIONS}"
+            )
+        self._registry_version = version
 
         tools = data["registry"].get("tools", [])
         if not isinstance(tools, list):
@@ -139,3 +169,7 @@ class ToolRegistry:
     @property
     def tool_ids(self):
         return list(self._tools.keys())
+
+    @property
+    def version(self):
+        return self._registry_version

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] — 2026-06-10
+
+### Added
+
+- **Middleware pipeline architecture** — 7-stage deterministic pipeline (PreValidation → SessionGuard → CapabilityRouting → PreExecution → Execution → PostValidation → AuditLog) with explicit StageResult per stage
+- **Request Context Graph** — `RequestContext` dataclass with mandatory fields (request_id, session_id, project_id), execution_trace array, decision_path, stage_timings, lifecycle timestamps
+- **Governance Enforcement Engine** — `PolicyEngine` (runtime/governance/policy_engine.py) with 6 YAML-defined policies evaluated BEFORE execution; DENY blocks pipeline
+- **Runtime governance policies** — `runtime/governance/policies/runtime.yaml` with POL-001 to POL-006 covering field presence, tool existence, session gating, path access, timeout, error isolation
+- **Tool isolation layer** — `execute_isolated()` wraps tool execution with ThreadPoolExecutor timeout; EXECUTION_TIMEOUT and EXECUTION_ERROR envelopes prevent cascade failure
+- **SessionGuard middleware** — formal session validation pipeline stage (runtime/session/session_guard.py)
+- **Registry versioning system** — `SUPPORTED_VERSIONS` validates registry YAML at load time; incompatible versions raise fatal error
+- **Enhanced observability** — audit log captures execution_trace, decision_path, stage_timings, error_code per request
+
+### Changed
+
+- `runtime/logging/` → `runtime/auditlog/` (stdlib `logging` module collision fix)
+- `runtime/tools/definitions.yaml` — bumped registry version to 0.3.0
+- `runtime/mcp_gateway/main.py` — rewritten to use Pipeline + PipelineServices
+- `runtime/executor/local_executor.py` — added `execute_isolated()` with timeout
+- `runtime/tools/registry.py` — added version validation, `IncompatibleRegistryVersionError`
+- `.ai/ARCHITECTURE.md` §13 — updated for v0.3.0 control plane pipeline details
+- `.ai/GOVERNANCE.md` §5 — updated for governance enforcement engine and isolation
+- `.ai/ADR_LOG.md` — added ADR-006
+
+---
+
 ## [0.2.0] — 2026-06-10
 
 ### Added

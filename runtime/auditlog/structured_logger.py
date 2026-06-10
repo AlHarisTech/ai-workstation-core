@@ -1,11 +1,18 @@
-"""AI Workstation — Structured Logger (Append-Only JSON)
+"""AI Workstation — Structured Logger v0.3.0 (Enhanced Observability)
 
-Provides deterministic, append-only structured logging for the MCP Gateway.
-Every log entry is a single JSON line containing the full lifecycle trace.
+Append-only JSON audit log. Every entry captures the full execution
+trace graph, decision path, and stage-level timing metrics.
+
+New in v0.3.0:
+  - execution_trace: ordered array of stage results
+  - decision_path: ordered list of stage names visited
+  - stage_timings: dict mapping stage name → duration in ms
+  - error_code: structured error classification
 
 Properties:
   - Append-only: no truncation, no rotation in MVP.
-  - Structured: every entry has request_id, session_id, tool, routing, result, error.
+  - Structured: every entry has request_id, session_id, tool_id, etc.
+  - Traceable: full execution trace reconstructable from log alone.
   - Fail-safe: logging failure never blocks gateway execution.
 """
 
@@ -21,24 +28,19 @@ _ENTRY_FIELDS = [
     "project_id",
     "tool_id",
     "capability",
-    "routing_decision",
-    "execution_result",
-    "duration_ms",
-    "error",
-    "error_trace",
     "status",
+    "decision_path",
+    "stage_timings",
+    "total_ms",
+    "execution_trace",
+    "error",
+    "error_code",
     "timestamp",
 ]
 
 
 class StructuredLogger:
-    """Append-only structured JSON logger.
-
-    Thread-safe. Writes one JSON object per line to a log file.
-    Log file path defaults to .ai/governance/audit/gateway.log relative
-    to the workspace root, determined by the AI_WORKSTATION_ROOT
-    environment variable.
-    """
+    """Append-only structured JSON logger with execution trace support."""
 
     def __init__(self, log_path=None):
         if log_path is None:
@@ -58,13 +60,14 @@ class StructuredLogger:
         Args:
             entry: dict with keys from _ENTRY_FIELDS. Unknown keys are
                    silently dropped. Missing fields are populated with
-                   null defaults.
-
-        Returns:
-            None. Logging failure is captured but never raises.
+                   null defaults. execution_trace, stage_timings, and
+                   decision_path are preserved as complex structures.
         """
         entry.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
-        record = {k: entry.get(k) for k in _ENTRY_FIELDS}
+        record = {}
+        for k in _ENTRY_FIELDS:
+            v = entry.get(k)
+            record[k] = v if v is not None else None
         try:
             with self._lock:
                 with open(self._log_path, "a", encoding="utf-8") as f:

@@ -1,10 +1,11 @@
-# AI Workstation — Tool Registry Definitions (v0.2.0)
+# AI Workstation — Tool Registry Definitions (v0.3.0)
 # This file is the authoritative source of truth for available tools.
 # The YAML registry must match the runtime handler mapping in local_executor.py.
 # Drift between registry and executor is a CRITICAL governance violation.
+# Registry version is validated at load time. Supported: 0.2.0, 0.3.0
 
 registry:
-  version: "0.2.0"
+  version: "0.3.0"
   tools:
     - id: "echo"
       name: "Echo"
