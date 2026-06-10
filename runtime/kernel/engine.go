@@ -55,25 +55,27 @@ func DefaultHardeningConfig() HardeningConfig {
 }
 
 type KernelEngine struct {
-	config        KernelConfig
-	harden        HardeningConfig
-	queue         *queue.RequestQueue
-	fairQueue     *queue.FairQueue
-	pool          *worker.WorkerPool
-	policy        *policy.PolicyEngine
-	executor      *executor.TimeoutWrapper // keep for compatibility
-	stateStore    *state.StateStore
-	logger        *observability.StructuredLogger
-	tracer        *observability.Tracer
-	metrics       *observability.KernelMetrics
-	lifecycle     *Lifecycle
+	config         KernelConfig
+	harden         HardeningConfig
+	queue          *queue.RequestQueue
+	fairQueue      *queue.FairQueue
+	pool           *worker.WorkerPool
+	policy         *policy.PolicyEngine
+	executor       *executor.TimeoutWrapper
+	stateStore     *state.StateStore
+	logger         *observability.StructuredLogger
+	tracer         *observability.Tracer
+	metrics        *observability.KernelMetrics
+	latency        *observability.LatencyTracker
+	loadShedder    *LoadShedder
+	consistency    *state.ConsistencyGuard
+	lifecycle      *Lifecycle
 
 	resultChan     chan *types.RequestContext
 	errorChan      chan types.KernelEvent
 	stateWriteChan chan *types.RequestContext
 
 	ingestStopped   bool
-	drainComplete   bool
 	shutdownStarted time.Time
 }
 
@@ -132,6 +134,9 @@ func NewKernelEngine(cfg KernelConfig, harden HardeningConfig) (*KernelEngine, e
 		logger:         logger,
 		tracer:         observability.NewTracer(),
 		metrics:        observability.NewKernelMetrics(),
+		latency:        observability.NewLatencyTracker(2000),
+		loadShedder:    NewLoadShedder(),
+		consistency:    state.NewConsistencyGuard(),
 		lifecycle:      NewLifecycle(),
 		resultChan:     resultChan,
 		errorChan:      errorChan,
@@ -239,16 +244,15 @@ func (ke *KernelEngine) GracefulShutdown() {
 	close(ke.errorChan)
 	close(ke.stateWriteChan)
 
-	snap, _ := ke.stateStore.GenerateSnapshot(
+	_, _ = ke.stateStore.GenerateSnapshot(
 		ke.pool.Supervisor().AllHealth(),
 		ke.metrics.Snapshot(),
 	)
-	if snap != nil {
-		ke.logger.Log(types.LogEntry{
-			Status:    "shutdown_snapshot",
-			Timestamp: time.Now(),
-		})
-	}
+
+	ke.logger.Log(types.LogEntry{
+		Status:    "shutdown_snapshot",
+		Timestamp: time.Now(),
+	})
 
 	ke.logger.Log(types.LogEntry{
 		Status:    "shutdown_phase_5_complete",
@@ -264,6 +268,17 @@ func (ke *KernelEngine) Shutdown() {
 func (ke *KernelEngine) collectResults() {
 	for ctx := range ke.resultChan {
 		ke.metrics.QueueDepth.Add(-1)
+
+		totalMs := 0.0
+		for _, t := range ctx.StageTimings {
+			totalMs += t
+		}
+		ke.latency.Record(totalMs)
+		sla := ke.latency.Snapshot()
+		if sla.Violation {
+			ke.loadShedder.RecordSLAViolation()
+		}
+
 		switch ctx.Status {
 		case types.StatusSuccess:
 			ke.metrics.Completed.Add(1)
@@ -310,16 +325,28 @@ func (ke *KernelEngine) metricsEmitter() {
 func (ke *KernelEngine) emitMetricsCycle() {
 	health := ke.pool.Supervisor().FailureSummary()
 	snap := ke.metrics.Snapshot()
+	sla := ke.latency.Snapshot()
+	loadState := ke.loadShedder.State()
+	utilization := ke.pool.Supervisor().Utilization()
+	maxStarv := ke.fairQueue.MaxStarvationMs()
+
+	ke.loadShedder.Evaluate(ke.queue.Size(), ke.queue.MaxSize(), utilization)
 
 	entry := types.LogEntry{
 		Status:    "metrics_cycle",
 		Timestamp: time.Now(),
 	}
 	payload := map[string]interface{}{
-		"metrics":       snap,
-		"worker_health": health,
-		"queue_depth":   ke.queue.Size(),
-		"queue_max":     ke.queue.MaxSize(),
+		"metrics":          snap,
+		"sla":              sla,
+		"worker_health":    health,
+		"worker_utilization": utilization,
+		"load_state":       loadState.String(),
+		"queue_depth":      ke.queue.Size(),
+		"queue_max":        ke.queue.MaxSize(),
+		"queue_saturation": float64(ke.queue.Size()) / float64(ke.queue.MaxSize()),
+		"max_starvation_ms": maxStarv,
+		"sla_violations":   ke.loadShedder.SLAViolations(),
 	}
 	data, _ := json.Marshal(payload)
 	entry.Error = string(data)

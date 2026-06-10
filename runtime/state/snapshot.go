@@ -14,6 +14,7 @@ import (
 type SnapshotRecord struct {
 	SnapshotID    string           `json:"snapshot_id"`
 	GeneratedAt   time.Time        `json:"generated_at"`
+	Consistency   string           `json:"consistency"`
 	TraceCount    int              `json:"trace_count"`
 	Traces        []TraceRecord    `json:"traces"`
 	WorkerHealth  interface{}      `json:"worker_health,omitempty"`
@@ -29,6 +30,10 @@ type ReplayResult struct {
 }
 
 func (ss *StateStore) GenerateSnapshot(workerHealth, metricsData interface{}) (*SnapshotRecord, error) {
+	return ss.generateSnapshotInternal(workerHealth, metricsData, Weak)
+}
+
+func (ss *StateStore) generateSnapshotInternal(workerHealth, metricsData interface{}, mode ConsistencyMode) (*SnapshotRecord, error) {
 	tracesDir := filepath.Join(ss.root, "traces")
 	entries, err := os.ReadDir(tracesDir)
 	if err != nil {
@@ -55,9 +60,15 @@ func (ss *StateStore) GenerateSnapshot(workerHealth, metricsData interface{}) (*
 		}
 	}
 
+	prefix := "snap_w_"
+	if mode == Strong {
+		prefix = "snap_s_"
+	}
+
 	snap := &SnapshotRecord{
-		SnapshotID:   "snap_" + time.Now().UTC().Format("20060102T150405"),
+		SnapshotID:   prefix + time.Now().UTC().Format("20060102T150405"),
 		GeneratedAt:  time.Now(),
+		Consistency:  string(mode),
 		TraceCount:   len(traces),
 		Traces:       traces,
 		WorkerHealth: workerHealth,

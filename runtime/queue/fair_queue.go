@@ -2,25 +2,53 @@ package queue
 
 import (
 	"sync"
+	"time"
 
 	"github.com/AlHarisTech/ai-workstation-core/runtime/types"
 )
 
+type FairnessViolation struct {
+	Type        string   `json:"type"`
+	SessionID   string   `json:"session_id"`
+	WaitTimeMs  float64  `json:"wait_time_ms"`
+	RiskSessions []string `json:"risk_sessions,omitempty"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
 type FairQueue struct {
-	sessions map[string][]*types.RequestContext
-	order    []string
-	pos      int
-	mu       sync.Mutex
-	maxSize  int
-	total    int
+	sessions       map[string]*sessionEntry
+	order          []string
+	pos            int
+	mu             sync.Mutex
+	maxSize        int
+	total          int
+	maxStarvation  time.Duration
+	violationCb    func(FairnessViolation)
+	lastCheck      time.Time
+}
+
+type sessionEntry struct {
+	requests   []*types.RequestContext
+	firstEnqueue time.Time
+	totalServed  int64
+	maxWait      time.Duration
 }
 
 func NewFairQueue(maxSize int) *FairQueue {
 	return &FairQueue{
-		sessions: make(map[string][]*types.RequestContext),
-		order:    make([]string, 0, 16),
-		maxSize:  maxSize,
+		sessions:      make(map[string]*sessionEntry),
+		order:         make([]string, 0, 16),
+		maxSize:       maxSize,
+		maxStarvation: 30 * time.Second,
+		lastCheck:     time.Now(),
+		violationCb:   func(fv FairnessViolation) {},
 	}
+}
+
+func (fq *FairQueue) SetViolationCallback(cb func(FairnessViolation)) {
+	fq.mu.Lock()
+	defer fq.mu.Unlock()
+	fq.violationCb = cb
 }
 
 func (fq *FairQueue) Enqueue(req *types.RequestContext) error {
@@ -36,11 +64,16 @@ func (fq *FairQueue) Enqueue(req *types.RequestContext) error {
 		sid = "_global"
 	}
 
-	if _, exists := fq.sessions[sid]; !exists {
+	entry, exists := fq.sessions[sid]
+	if !exists {
 		fq.order = append(fq.order, sid)
+		entry = &sessionEntry{firstEnqueue: time.Now()}
+		fq.sessions[sid] = entry
 	}
-	fq.sessions[sid] = append(fq.sessions[sid], req)
+	entry.requests = append(entry.requests, req)
 	fq.total++
+
+	fq.checkFairness()
 	return nil
 }
 
@@ -59,12 +92,18 @@ func (fq *FairQueue) Dequeue() *types.RequestContext {
 		}
 
 		sid := fq.order[fq.pos]
-		if len(fq.sessions[sid]) > 0 {
-			req := fq.sessions[sid][0]
-			fq.sessions[sid] = fq.sessions[sid][1:]
+		entry := fq.sessions[sid]
+		if entry != nil && len(entry.requests) > 0 {
+			req := entry.requests[0]
+			entry.requests = entry.requests[1:]
+			waitTime := time.Since(req.TimestampStart)
+			if waitTime > entry.maxWait {
+				entry.maxWait = waitTime
+			}
+			entry.totalServed++
 			fq.total--
 
-			if len(fq.sessions[sid]) == 0 {
+			if len(entry.requests) == 0 {
 				delete(fq.sessions, sid)
 				fq.order = append(fq.order[:fq.pos], fq.order[fq.pos+1:]...)
 				if fq.pos >= len(fq.order) {
@@ -85,6 +124,71 @@ func (fq *FairQueue) Dequeue() *types.RequestContext {
 	return nil
 }
 
+func (fq *FairQueue) checkFairness() {
+	now := time.Now()
+	if now.Sub(fq.lastCheck) < time.Second {
+		return
+	}
+	fq.lastCheck = now
+
+	for sid, entry := range fq.sessions {
+		waitTime := now.Sub(entry.firstEnqueue)
+		if waitTime > fq.maxStarvation/2 && waitTime <= fq.maxStarvation {
+			fq.violationCb(FairnessViolation{
+				Type:       "FAIRNESS_WARNING",
+				SessionID:  sid,
+				WaitTimeMs: float64(waitTime.Microseconds()) / 1000.0,
+				Timestamp:  now,
+			})
+		}
+		if waitTime > fq.maxStarvation {
+			risk := fq.starvationRiskLocked()
+			fq.violationCb(FairnessViolation{
+				Type:        "FAIRNESS_VIOLATION",
+				SessionID:    sid,
+				WaitTimeMs:   float64(waitTime.Microseconds()) / 1000.0,
+				RiskSessions: risk,
+				Timestamp:    now,
+			})
+		}
+	}
+}
+
+func (fq *FairQueue) starvationRiskLocked() []string {
+	var risk []string
+	maxPending := 0
+	for _, entry := range fq.sessions {
+		if len(entry.requests) > maxPending {
+			maxPending = len(entry.requests)
+		}
+	}
+	for sid, entry := range fq.sessions {
+		if len(entry.requests) > 0 && maxPending > 3 && len(entry.requests) >= maxPending/2 {
+			risk = append(risk, sid)
+		}
+	}
+	return risk
+}
+
+func (fq *FairQueue) StarvationRisk() []string {
+	fq.mu.Lock()
+	defer fq.mu.Unlock()
+	return fq.starvationRiskLocked()
+}
+
+func (fq *FairQueue) MaxStarvationMs() float64 {
+	fq.mu.Lock()
+	defer fq.mu.Unlock()
+	var maxMs float64
+	for _, entry := range fq.sessions {
+		ms := float64(entry.maxWait.Microseconds()) / 1000.0
+		if ms > maxMs {
+			maxMs = ms
+		}
+	}
+	return maxMs
+}
+
 func (fq *FairQueue) Size() int {
 	fq.mu.Lock()
 	defer fq.mu.Unlock()
@@ -101,26 +205,8 @@ func (fq *FairQueue) SessionSizes() map[string]int {
 	fq.mu.Lock()
 	defer fq.mu.Unlock()
 	result := make(map[string]int, len(fq.sessions))
-	for sid, reqs := range fq.sessions {
-		result[sid] = len(reqs)
+	for sid, entry := range fq.sessions {
+		result[sid] = len(entry.requests)
 	}
 	return result
-}
-
-func (fq *FairQueue) StarvationRisk() []string {
-	fq.mu.Lock()
-	defer fq.mu.Unlock()
-	var risk []string
-	maxPending := 0
-	for _, reqs := range fq.sessions {
-		if len(reqs) > maxPending {
-			maxPending = len(reqs)
-		}
-	}
-	for sid, reqs := range fq.sessions {
-		if len(reqs) > 0 && maxPending > 3 && len(reqs) >= maxPending/2 {
-			risk = append(risk, sid)
-		}
-	}
-	return risk
 }
