@@ -29,7 +29,9 @@ func (tr *ToolRouter) Register(tool, action string, adapter types.MCPAdapter) {
 	tr.routes[tool][action] = adapter
 }
 
-func (tr *ToolRouter) Route(req types.MCPRequest) (types.MCPResponse, error) {
+var routeCounter uint64
+
+func (tr *ToolRouter) Route(ctx context.Context, req types.MCPRequest) (types.MCPResponse, error) {
 	tr.mu.RLock()
 	defer tr.mu.RUnlock()
 
@@ -50,11 +52,11 @@ func (tr *ToolRouter) Route(req types.MCPRequest) (types.MCPResponse, error) {
 	}
 
 	start := time.Now()
-	ctx := context.Background()
 	resp, err := adapter.Execute(ctx, req)
 	latency := time.Since(start).Milliseconds()
 	resp.LatencyMS = latency
-	resp.TraceID = fmt.Sprintf("tr_%s_%d", req.ID, time.Now().UnixNano())
+	resp.TraceID = fmt.Sprintf("tr_%s_%s_%s_%d", req.Tool, req.Action, req.ID, routeCounter)
+	routeCounter++
 	return resp, err
 }
 
