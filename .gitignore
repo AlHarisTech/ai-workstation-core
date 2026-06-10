@@ -1,0 +1,46 @@
+# AI Workstation Core — .gitignore
+# Only the AI Workstation platform is tracked. Project source code is excluded.
+
+# Project source code — NOT part of the workstation platform
+/projects/
+
+# Temporary files
+/tmp/
+*.tmp
+*.swp
+*.swo
+*~
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# IDE/editor directories
+.idea/
+.vscode/
+*.sublime-*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Secrets directory (encrypted secrets only — never expose decrypted)
+.ai/config/secrets/*.decrypted
+
+# Logs
+*.log
+/ai/governance/audit/*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# Docker
+.docker/
