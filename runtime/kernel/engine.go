@@ -16,18 +16,23 @@ import (
 )
 
 type KernelEngine struct {
-	config   KernelConfig
-	queue    *queue.RequestQueue
-	pool     *worker.WorkerPool
-	policy   *policy.PolicyEngine
-	executor *executor.TimeoutWrapper
-	state    *state.StateStore
-	logger   *observability.StructuredLogger
-	tracer   *observability.Tracer
-	metrics  *observability.Metrics
-	lifecycle *Lifecycle
-	results  chan *types.RequestContext
-	errors   chan types.KernelEvent
+	config     KernelConfig
+	queue      *queue.RequestQueue
+	pool       *worker.WorkerPool
+	policy     *policy.PolicyEngine
+	executor   *executor.TimeoutWrapper
+	stateStore *state.StateStore
+	logger     *observability.StructuredLogger
+	tracer     *observability.Tracer
+	metrics    *observability.Metrics
+	lifecycle  *Lifecycle
+
+	// Core channels (§2.1)
+	requestChan    chan *types.RequestContext
+	resultChan     chan *types.RequestContext
+	errorChan      chan types.KernelEvent
+	shutdownChan   chan struct{}
+	stateWriteChan chan *types.RequestContext
 }
 
 type SimpleRegistry struct{}
@@ -74,8 +79,10 @@ func NewKernelEngine(cfg KernelConfig) (*KernelEngine, error) {
 	}
 
 	reqQueue := queue.NewRequestQueue(cfg.QueueSize)
-	results := make(chan *types.RequestContext, cfg.QueueSize)
-	errs := make(chan types.KernelEvent, 64)
+	resultChan := make(chan *types.RequestContext, cfg.QueueSize)
+	errorChan := make(chan types.KernelEvent, 64)
+	stateWriteChan := make(chan *types.RequestContext, cfg.QueueSize)
+	shutdownChan := make(chan struct{})
 
 	policyEngine := policy.NewPolicyEngine(policy.DefaultRules(), "0.4.1")
 	reg := &SimpleRegistry{}
@@ -85,8 +92,8 @@ func NewKernelEngine(cfg KernelConfig) (*KernelEngine, error) {
 	pool := worker.NewWorkerPool(
 		cfg.WorkerCount,
 		reqQueue.Chan(),
-		results,
-		errs,
+		resultChan,
+		errorChan,
 		policyEngine,
 		timeoutWrapper,
 		observability.LogFn(logger),
@@ -98,18 +105,21 @@ func NewKernelEngine(cfg KernelConfig) (*KernelEngine, error) {
 	lifecycle := NewLifecycle()
 
 	return &KernelEngine{
-		config:    cfg,
-		queue:     reqQueue,
-		pool:      pool,
-		policy:    policyEngine,
-		executor:  timeoutWrapper,
-		state:     state.NewStateStore(statePath),
-		logger:    logger,
-		tracer:    tracer,
-		metrics:   metrics,
-		lifecycle: lifecycle,
-		results:   results,
-		errors:    errs,
+		config:         cfg,
+		queue:          reqQueue,
+		pool:           pool,
+		policy:         policyEngine,
+		executor:       timeoutWrapper,
+		stateStore:     state.NewStateStore(statePath),
+		logger:         logger,
+		tracer:         tracer,
+		metrics:        metrics,
+		lifecycle:      lifecycle,
+		requestChan:    nil,
+		resultChan:     resultChan,
+		errorChan:      errorChan,
+		shutdownChan:   shutdownChan,
+		stateWriteChan: stateWriteChan,
 	}, nil
 }
 
@@ -118,12 +128,13 @@ func (ke *KernelEngine) Start() {
 	ke.lifecycle.WaitForSignal()
 
 	ke.logger.Log(types.LogEntry{
-		Status: "kernel_started",
+		Status:    "kernel_started",
 		Timestamp: time.Now(),
 	})
 
 	go ke.collectResults()
 	go ke.collectErrors()
+	go ke.stateWriter()
 }
 
 func (ke *KernelEngine) Ingest(raw json.RawMessage) error {
@@ -174,8 +185,9 @@ func (ke *KernelEngine) Shutdown() {
 	time.Sleep(300 * time.Millisecond)
 	ke.queue.Close()
 	ke.pool.Wait()
-	close(ke.results)
-	close(ke.errors)
+	close(ke.resultChan)
+	close(ke.errorChan)
+	close(ke.stateWriteChan)
 	ke.logger.Log(types.LogEntry{
 		Status:    "kernel_stopped",
 		Timestamp: time.Now(),
@@ -184,7 +196,7 @@ func (ke *KernelEngine) Shutdown() {
 }
 
 func (ke *KernelEngine) collectResults() {
-	for ctx := range ke.results {
+	for ctx := range ke.resultChan {
 		ke.metrics.QueueDepth.Add(-1)
 		if ctx.Status == types.StatusSuccess {
 			ke.metrics.RequestsCompleted.Add(1)
@@ -194,7 +206,16 @@ func (ke *KernelEngine) collectResults() {
 		} else {
 			ke.metrics.RequestsDenied.Add(1)
 		}
-		if err := ke.state.SaveTraceWithRetry(ctx); err != nil {
+		response, _ := json.Marshal(ctx)
+		fmt.Println(string(response))
+
+		ke.stateWriteChan <- ctx
+	}
+}
+
+func (ke *KernelEngine) stateWriter() {
+	for ctx := range ke.stateWriteChan {
+		if err := ke.stateStore.SaveTraceWithRetry(ctx); err != nil {
 			ke.logger.Log(types.LogEntry{
 				RequestID: ctx.RequestID,
 				Status:    "STATE_WRITE_FAILED",
@@ -202,17 +223,15 @@ func (ke *KernelEngine) collectResults() {
 				Timestamp: time.Now(),
 			})
 		}
-		response, _ := json.Marshal(ctx)
-		fmt.Println(string(response))
 	}
 }
 
 func (ke *KernelEngine) collectErrors() {
-	for evt := range ke.errors {
+	for evt := range ke.errorChan {
 		ke.tracer.TraceEvent(evt)
 	}
 }
 
-func (ke *KernelEngine) Queue() *queue.RequestQueue { return ke.queue }
-func (ke *KernelEngine) Metrics() *observability.Metrics { return ke.metrics }
-func (ke *KernelEngine) Tracer() *observability.Tracer { return ke.tracer }
+func (ke *KernelEngine) Queue() *queue.RequestQueue      { return ke.queue }
+func (ke *KernelEngine) Metrics() *observability.Metrics  { return ke.metrics }
+func (ke *KernelEngine) Tracer() *observability.Tracer    { return ke.tracer }
