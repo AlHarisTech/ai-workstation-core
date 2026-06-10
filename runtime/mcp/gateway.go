@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/AlHarisTech/ai-workstation-core/runtime/kernel"
 	"github.com/AlHarisTech/ai-workstation-core/runtime/mcp/contracts"
 	"github.com/AlHarisTech/ai-workstation-core/runtime/mcp/hardening"
 	mcpobs "github.com/AlHarisTech/ai-workstation-core/runtime/mcp/observability"
+	"github.com/AlHarisTech/ai-workstation-core/runtime/mcp/release"
 	mcprouter "github.com/AlHarisTech/ai-workstation-core/runtime/mcp/router"
 	mcptypes "github.com/AlHarisTech/ai-workstation-core/runtime/mcp/types"
 	"github.com/AlHarisTech/ai-workstation-core/runtime/mcp/tools/filesystem"
@@ -25,6 +27,7 @@ type IntegrationGateway struct {
 	latencyBudget    *mcpobs.LatencyBudget
 	sessionTracker   *mcpobs.SessionTracker
 	kernelSignals    *mcpobs.KernelSignalReader
+	mro              *release.ReleaseOrchestrator
 }
 
 func NewIntegrationGateway(ke *kernel.KernelEngine) *IntegrationGateway {
@@ -54,9 +57,12 @@ func NewIntegrationGateway(ke *kernel.KernelEngine) *IntegrationGateway {
 	ig.registerWrapped("git", "diff", git.New("."))
 	ig.registerWrapped("git", "log", git.New("."))
 	ig.registerWrapped("git", "branch", git.New("."))
+	ig.registerWrapped("git", "commit", git.New("."))
 	ig.registerWrapped("github", "create_pr", github.New())
 	ig.registerWrapped("github", "list_issues", github.New())
 	ig.registerWrapped("github", "create_issue", github.New())
+
+	ig.registerMRO()
 
 	return ig
 }
@@ -68,6 +74,17 @@ func (ig *IntegrationGateway) registerWrapped(tool, action string, adapter mcpty
 	instrumented := mcpobs.NewInstrumentedAdapter(adapter, ig.telemetry)
 	instrumented.SetFastPathFn(func() float64 { return ig.kernelSignals.SaturationPct() })
 	ig.router.Register(tool, action, instrumented)
+}
+
+func (ig *IntegrationGateway) registerMRO() {
+	token := os.Getenv("GITHUB_TOKEN")
+	notify := func(ev mcpobs.TraceEvent) {}
+	orch := release.NewReleaseOrchestrator(token, "AlHarisTech", "ai-workstation-core", notify)
+	ig.mro = orch
+	adapter := contracts.NewTimeoutAdapter(orch, 60*time.Second)
+	instrumented := mcpobs.NewInstrumentedAdapter(adapter, ig.telemetry)
+	instrumented.SetFastPathFn(func() float64 { return ig.kernelSignals.SaturationPct() })
+	ig.router.Register("release", "publish", instrumented)
 }
 
 func (ig *IntegrationGateway) BackpressureModel() *contracts.BackpressureModel {
@@ -163,6 +180,11 @@ func (ig *IntegrationGateway) Process(raw json.RawMessage) mcptypes.MCPResponse 
 	ig.sessionTracker.EvictStale()
 	_ = ig.kernelSignals.HealthScore()
 
+	// Step 8: Process pending release queue (best-effort, non-blocking)
+	if ig.mro != nil && ig.mro.Queue().PendingCount() > 0 {
+		ig.mro.ProcessQueue()
+	}
+
 	return resp
 }
 
@@ -180,6 +202,10 @@ func (ig *IntegrationGateway) SessionTracker() *mcpobs.SessionTracker {
 
 func (ig *IntegrationGateway) LatencyBudget() *mcpobs.LatencyBudget {
 	return ig.latencyBudget
+}
+
+func (ig *IntegrationGateway) ReleaseOrchestrator() *release.ReleaseOrchestrator {
+	return ig.mro
 }
 
 func (ig *IntegrationGateway) HealthSnapshot() mcpobs.HealthScores {

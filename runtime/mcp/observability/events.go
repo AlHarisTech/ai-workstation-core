@@ -18,8 +18,17 @@ const (
 	EventToolStart         EventType = "tool.start"
 	EventToolComplete      EventType = "tool.complete"
 	EventToolError         EventType = "tool.error"
-	EventBackpressureHit   EventType = "backpressure.hit"
+	EventBackpressureHit    EventType = "backpressure.hit"
 	EventRetryBudgetExhaust EventType = "retry.budget_exhaust"
+	EventReleaseStart       EventType = "release.start"
+	EventReleaseTagCreated  EventType = "release.tag_created"
+	EventReleasePublished        EventType = "release.published"
+	EventReleaseFailure          EventType = "release.failure"
+	EventReleasePendingExternal  EventType = "release.pending_external"
+	EventReleaseQueued           EventType = "release.queued"
+	EventReleaseRetryScheduled   EventType = "release.retry_scheduled"
+	EventReleaseExternalRecovered EventType = "release.external_recovered"
+	EventReleaseFinalFailure     EventType = "release.final_failure"
 )
 
 type TraceEvent struct {
