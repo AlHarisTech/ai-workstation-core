@@ -1,19 +1,16 @@
-"""AI Workstation — Deterministic Control Plane Pipeline (v0.3.0)
+"""AI Workstation — Deterministic Control Plane Pipeline (v0.4.0)
 
-Replaces linear execution with a structured middleware pipeline.
+Structured middleware pipeline with dual mode support.
 Each stage is explicit, traceable, and independently measurable.
 
-Pipeline stages (in execution order):
-  1. PreValidation   — mandatory field presence, JSON validity
-  2. SessionGuard     — session validation (fail-closed)
-  3. CapabilityRouting — tool_id resolution from registry
-  4. PreExecution     — governance policy checks, path deny-list
-  5. Execution        — tool dispatch with timeout isolation
-  6. PostValidation   — error isolation, result sanitization
-  7. AuditLog         — structured log emission
+Pipeline modes:
+  STRICT_MODE     — full 7-stage pipeline
+  OPTIMIZED_MODE  — reduced stages (skip audit_log, simplified post)
 
-Every stage returns a StageResult. DENY stops the pipeline.
-The pipeline is the SINGLE path for all tool.call requests.
+v0.4.0 additions:
+  - Dual mode: selectable per-request via pipeline_mode field
+  - Composable policy evaluation graph tracking
+  - Latency breakdown: queue, routing, execution, audit, total
 """
 
 from __future__ import annotations
@@ -21,54 +18,60 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
-from mcp_gateway.context import RequestContext, StageResult, ErrorEnvelope
+from mcp_gateway.context import RequestContext, StageResult, ErrorEnvelope, PIPELINE_STRICT, PIPELINE_OPTIMIZED
 from tools.registry import ToolNotFoundError
 
 
 class Pipeline:
-    """Deterministic control plane pipeline.
+    """Dual-mode deterministic control plane pipeline."""
 
-    Executes middleware stages in strict order. Each stage receives
-    the accumulating RequestContext and produces a StageResult.
+    STRICT_STAGES = [
+        "pre_validation",
+        "session_guard",
+        "capability_routing",
+        "pre_execution",
+        "execution",
+        "post_validation",
+        "audit_log",
+    ]
 
-    Stages can be added via `add_stage()`. The pipeline evaluates
-    each stage in registration order. First DENY stops execution
-    immediately (fail-closed).
-    """
+    OPTIMIZED_STAGES = [
+        "pre_validation",
+        "session_guard",
+        "capability_routing",
+        "pre_execution",
+        "execution",
+        "post_validation",
+    ]
 
     def __init__(self, services):
-        """Initialize pipeline with service dependencies.
-
-        Args:
-            services: PipelineServices with registry, executor, etc.
-        """
         self._services = services
-        self._stages = []
-        self._register_default_stages()
+        self._stages = {}
 
-    def _register_default_stages(self):
-        """Register the 7 standard pipeline stages in order."""
-        self.add_stage("pre_validation", self._stage_pre_validation)
-        self.add_stage("session_guard", self._stage_session_guard)
-        self.add_stage("capability_routing", self._stage_capability_routing)
-        self.add_stage("pre_execution", self._stage_pre_execution)
-        self.add_stage("execution", self._stage_execution)
-        self.add_stage("post_validation", self._stage_post_validation)
-        self.add_stage("audit_log", self._stage_audit_log)
-
-    def add_stage(self, name, handler):
-        self._stages.append((name, handler))
+        self._stages["pre_validation"] = self._stage_pre_validation
+        self._stages["session_guard"] = self._stage_session_guard
+        self._stages["capability_routing"] = self._stage_capability_routing
+        self._stages["pre_execution"] = self._stage_pre_execution
+        self._stages["execution"] = self._stage_execution
+        self._stages["post_validation"] = self._stage_post_validation
+        self._stages["audit_log"] = self._stage_audit_log
 
     def process(self, context: RequestContext) -> RequestContext:
-        """Run the full pipeline on a RequestContext.
+        """Run pipeline in the mode specified by context.pipeline_mode.
 
-        Args:
-            context: initial RequestContext with mandatory fields set
-
-        Returns:
-            RequestContext with execution_trace populated, status finalized
+        STRICT_MODE:    7 stages (full audit)
+        OPTIMIZED_MODE: 6 stages (skip audit_log)
         """
-        for stage_name, handler in self._stages:
+        stage_order = (
+            self.OPTIMIZED_STAGES if context.pipeline_mode == PIPELINE_OPTIMIZED
+            else self.STRICT_STAGES
+        )
+
+        for stage_name in stage_order:
+            handler = self._stages.get(stage_name)
+            if handler is None:
+                continue
+
             result = handler(context, self._services)
             context.add_trace(result)
 
@@ -78,6 +81,8 @@ class Pipeline:
                     error=result.error or f"Pipeline denied at stage: {stage_name}",
                     error_code=f"DENIED_AT_{stage_name.upper()}",
                 )
+                self._finalize_latency(context)
+                self._run_audit_log(context, self._services)
                 return context
 
         context.finalize(
@@ -86,7 +91,31 @@ class Pipeline:
             error=context.error,
             error_code=context.error_code,
         )
+        self._finalize_latency(context)
+        self._run_audit_log(context, self._services)
         return context
+
+    def _finalize_latency(self, context):
+        """Compute latency breakdown after pipeline execution."""
+        bd = {}
+        bd["total_ms"] = round(sum(context.stage_timings.values()), 3) if context.stage_timings else 0
+        bd["queue_wait_ms"] = round(context.queue_wait_time_ms, 3)
+        bd["routing_ms"] = context.stage_timings.get("capability_routing", 0)
+        bd["execution_ms"] = context.stage_timings.get("execution", 0)
+        bd["audit_ms"] = context.stage_timings.get("audit_log", 0)
+        bd["validation_ms"] = (
+            context.stage_timings.get("pre_validation", 0)
+            + context.stage_timings.get("post_validation", 0)
+        )
+        context.latency_breakdown = bd
+
+    def _run_audit_log(self, context, services):
+        """Always run audit log stage, even for OPTIMIZED and denied paths."""
+        try:
+            result = self._stage_audit_log(context, services)
+            context.add_trace(result)
+        except Exception:
+            pass
 
     @staticmethod
     def _stage_pre_validation(context, services):
@@ -283,6 +312,11 @@ class Pipeline:
             "error_code": context.error_code,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "execution_trace": context.full_trace(),
+            "queue_wait_time_ms": round(context.queue_wait_time_ms, 3),
+            "worker_id": context.worker_id,
+            "pipeline_mode": context.pipeline_mode,
+            "latency_breakdown": context.latency_breakdown,
+            "policy_decision_graph": context.policy_decision_graph,
         }
 
         try:
@@ -300,12 +334,13 @@ class Pipeline:
 class PipelineServices:
     """Container for all services the pipeline depends on."""
 
-    def __init__(self, registry, executor, session_guard, policy_engine, logger):
+    def __init__(self, registry, executor, session_guard, policy_engine, logger, pipeline=None):
         self.registry = registry
         self.executor = executor
         self.session_guard = session_guard
         self.policy_engine = policy_engine
         self.logger = logger
+        self.pipeline = pipeline
 
     def get_tool_def(self, tool_id):
         if not tool_id:

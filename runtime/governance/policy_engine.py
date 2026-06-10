@@ -106,9 +106,11 @@ class PolicyEngine:
         """Evaluate all policies relevant to the given pipeline stage.
 
         Policies are evaluated in priority order. First DENY stops evaluation.
+        All policy decisions (allow + deny) are appended to the context's
+        policy_decision_graph for full observability.
 
         Args:
-            stage_name: pipeline stage name (e.g. "pre_validation", "session_guard")
+            stage_name: pipeline stage name
             context: RequestContext instance
             tool_def: tool definition dict from registry (optional)
 
@@ -121,11 +123,23 @@ class PolicyEngine:
         ]
         stage_policies.sort(key=lambda p: p.get("priority", 99))
 
+        graph_entries = []
+
         for policy in stage_policies:
             verdict = self._evaluate_policy(policy, context, tool_def)
+            graph_entries.append({
+                "policy_id": verdict.policy_id,
+                "policy_name": verdict.policy_name,
+                "stage": stage_name,
+                "decision": verdict.decision,
+                "reason": verdict.reason,
+                "priority": policy.get("priority", 0),
+            })
             if verdict.decision == "deny":
+                context.policy_decision_graph.extend(graph_entries)
                 return verdict
 
+        context.policy_decision_graph.extend(graph_entries)
         return PolicyVerdict(
             policy_id="-",
             policy_name="default-allow",

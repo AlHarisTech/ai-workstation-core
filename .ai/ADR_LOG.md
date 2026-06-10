@@ -16,6 +16,7 @@
 | ADR-004 | Session-Scoped Tool Injection | Accepted | 2026-06-10 |
 | ADR-005 | MCP Gateway Runtime Implementation (v0.2.0) | Accepted | 2026-06-10 |
 | ADR-006 | Deterministic Control Plane Kernel (v0.3.0) | Accepted | 2026-06-10 |
+| ADR-007 | Adaptive Runtime Kernel (v0.4.0) | Accepted | 2026-06-10 |
 
 ---
 
@@ -239,3 +240,56 @@ Establishes: **Governance is runtime, not documentation.** Every policy in `runt
 - ADR-005: MCP Gateway Runtime Implementation (v0.2.0 — predecessor)
 - ADR-003: Per-Project ChromaDB Namespaces (memory_store/retrieve still in-process)
 - ADR-002: Unix Socket Gateway over TCP (still deferred — stdio used)
+
+---
+
+## ADR-007: Adaptive Runtime Kernel (v0.4.0)
+
+**Status:** Accepted
+**Date:** 2026-06-10
+**Author:** Staff Engineer
+
+### Context
+v0.3.0 control plane processed requests sequentially through a single-threaded pipeline. No queue, no concurrency, no persistence. The kernel needed to handle multiple requests concurrently with backpressure, shared resources, and state durability.
+
+### Decision
+Implement an adaptive runtime kernel:
+1. **Execution Queue** (`RequestQueue`) — bounded FIFO with backpressure. Full queue → `QUEUE_FULL` rejection.
+2. **Shared Worker Pool** — N persistent threads pulling from the queue. Configurable via `AI_GATEWAY_WORKERS`.
+3. **Persistent State** (`StateStore`) — file-based JSON storage for sessions, execution traces, and platform metadata. Atomic writes (temp → rename).
+4. **Composable Policy Engine** — `policy_decision_graph` appended per request. All policy decisions (allow + deny) tracked.
+5. **Dual Pipeline Modes** — `strict` (7 stages + audit on all paths) and `optimized` (6 stages, audit only on completion). Selectable per request via `pipeline_mode` field.
+6. **Enhanced Observability** — `queue_wait_time_ms`, `worker_id`, `latency_breakdown`, and `policy_decision_graph` per request.
+
+### Forbidden Alternatives
+- External message broker (distributed systems — out of scope)
+- External database for state (file-based persistence sufficient)
+- Per-request thread pool (expensive, no worker reuse)
+- Always-audit mode only (reduced observability for OPTIMIZED cases)
+- Dynamic pipeline reconfiguration (added complexity without benefit)
+
+### Consequences
+- **Positive:** Concurrent request processing, backpressure protection, durable state, per-request mode selection, full policy graph
+- **Negative:** Slight startup latency for worker pool initialization. Optimized mode must still run audit_log at pipeline completion.
+
+### Failure Modes Prevented
+- Queue exhaustion: bounded queue with backpressure rejects overflow
+- State loss: atomic writes prevent partial persistence
+- Worker crash isolation: each worker runs in its own thread; supervisor (main) thread handles fatal errors
+- Pipeline mode mismatch: context validates mode at creation; unknown modes default to strict
+- Policy blind spots: all policy decisions (allow + deny) captured in `policy_decision_graph`
+
+### Governance Implications
+Establishes: **Queue depth and worker count are configurable, not hard-coded.** Environment variables `AI_GATEWAY_WORKERS` and `AI_QUEUE_SIZE` control at startup. Establishes `QUEUE_FULL` as a structured error code for backpressure rejection.
+
+### Compliance
+- `.ai/state/` must contain `meta.json` after gateway startup
+- Every request must include `worker_id` and `queue_wait_time_ms` in response
+- `policy_decision_graph` must have ≥ 3 entries for valid requests
+- OPTIMIZED_MODE requests must still produce audit log entries
+- StateStore writes must be atomic (temp file → rename verified)
+
+### Related
+- ADR-006: Deterministic Control Plane Kernel (v0.3.0 — predecessor)
+- ADR-005: MCP Gateway Runtime Implementation (v0.2.0)
+- ADR-003: Per-Project ChromaDB Namespaces

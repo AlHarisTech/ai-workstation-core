@@ -1230,64 +1230,74 @@ audit_entry:
 
 ---
 
-## 13. MCP Gateway Execution Mapping (v0.3.0)
+## 13. MCP Gateway Execution Mapping (v0.4.0)
 
-> **Runtime truth alignment for the control plane kernel.** This section maps the architectural design (§3) to the runtime implementation at `/runtime/mcp_gateway/`.
+> **Runtime truth alignment for the adaptive runtime kernel.** Maps architecture to the queue-driven, multi-worker implementation.
 
 ### 13.1 Runtime-to-Architecture Mapping
 
 | Architecture Concept | Runtime Implementation | File |
 |---|---|---|
-| Gateway Pipeline (Auth→Route→Session→Execute→Audit) | `Pipeline.process()` — 7 explicit middleware stages | `runtime/mcp_gateway/pipeline.py` |
-| Tool Registry with versioning | `ToolRegistry` with `SUPPORTED_VERSIONS` validation | `runtime/tools/registry.py` |
-| Capability Routing | `CapabilityRouting` pipeline stage | `runtime/mcp_gateway/pipeline.py` |
-| Session Validation (fail-closed) | `SessionGuard` pipeline stage | `runtime/session/session_guard.py` |
-| Governance Enforcement (runtime) | `PolicyEngine` with 6 YAML-defined policies | `runtime/governance/policy_engine.py` |
-| Governance Policies (runtime) | `runtime/governance/policies/runtime.yaml` | 6 policies (POL-001 to POL-006) |
-| Tool Isolation (timeout + cascade) | `LocalExecutor.execute_isolated()` with `ThreadPoolExecutor` | `runtime/executor/local_executor.py` |
-| Request Context Graph | `RequestContext` dataclass with `execution_trace` array | `runtime/mcp_gateway/context.py` |
-| Append-Only Audit Log | `StructuredLogger.log()` — execution_trace, stage timings | `runtime/auditlog/structured_logger.py` |
+| Gateway Pipeline (7-stage) | `Pipeline` with dual STRICT/OPTIMIZED mode | `runtime/mcp_gateway/pipeline.py` |
+| Execution Queue | `RequestQueue` — bounded FIFO with backpressure | `runtime/kernel/queue.py` |
+| Shared Worker Pool | Persistent worker threads (configurable N) | `runtime/kernel/worker_pool.py` |
+| Persistent State | `StateStore` — file-based JSON (sessions, traces, meta) | `runtime/kernel/state_store.py` |
+| Tool Registry with Versioning | `ToolRegistry` with version validation | `runtime/tools/registry.py` |
+| Governance Enforcement (Composable) | `PolicyEngine` with rule chaining + decision graph | `runtime/governance/policy_engine.py` |
+| Tool Isolation | `execute_isolated()` with timeout containment | `runtime/executor/local_executor.py` |
+| Request Context Graph | `RequestContext` with queue_wait, worker_id, latency_breakdown | `runtime/mcp_gateway/context.py` |
+| Audit Logging | `StructuredLogger` — policy graph, queue timing, worker info | `runtime/auditlog/structured_logger.py` |
 
-### 13.2 Control Plane Pipeline (v0.3.0)
+### 13.2 Kernel Architecture (v0.4.0)
 
 ```
-PreValidation → SessionGuard → CapabilityRouting → PreExecution
-              → Execution → PostValidation → AuditLog
+stdin → parse JSON → RequestContext.create() → RequestQueue.put()
+                                                  │
+                  ┌───────────────────────────────┘
+                  ▼
+         ┌───────────────────────┐
+         │   Worker Pool (N)      │
+         │                        │
+         │  wrk_000: queue.get()  │──→ Pipeline.process() ──→ result_list
+         │  wrk_001: queue.get()  │──→ Pipeline.process() ──→ result_list
+         │  wrk_002: queue.get()  │──→ Pipeline.process() ──→ result_list
+         │  wrk_003: queue.get()  │──→ Pipeline.process() ──→ result_list
+         └───────────────────────┘
+                  │
+                  ▼
+         Result Collector Thread
+                  │
+                  ▼
+         stdout (JSON responses)
 ```
 
-Each stage produces a `StageResult` with:
-- `stage`: stage name
-- `decision`: `allow` | `deny`
-- `duration_ms`: per-stage wall-clock time
-- `detail`: stage-specific metadata
-- `error`: error message if decision == `deny`
+### 13.3 Dual Pipeline Modes
 
-DENY is terminal — pipeline stops immediately (fail-closed).
+| Mode | Stages | Use Case |
+|---|---|---|
+| `strict` | 7 stages (full) + audit_log on all paths | Default. Full governance, full audit. |
+| `optimized` | 6 stages (no audit_log in pipeline) | Performance-sensitive. Audit still runs at end. |
 
-### 13.3 Governance Enforcement Engine
+Selectable per request via `"pipeline_mode": "optimized"` in the JSON request.
 
-6 runtime policies (POL-001 to POL-006) evaluated BEFORE execution:
-1. **POL-001** mandatory-context-fields — request_id, session_id, project_id
-2. **POL-002** tool-registry-existence — tool must be registered
-3. **POL-003** session-gate — session required if tool marks `require_session: true`
-4. **POL-004** path-access-control — deny `/etc/`, `/proc/`, `.ai/config/secrets/`
-5. **POL-005** execution-timeout — default 30s timeout boundary
-6. **POL-006** error-isolation — cascade containment via structured error envelope
+### 13.4 Latency Breakdown
 
-### 13.4 Tool Isolation
+Every response includes `execution.latency_breakdown`:
+- `queue_wait_ms` — time in RequestQueue before worker pickup
+- `routing_ms` — capability_routing stage duration
+- `execution_ms` — tool execution stage duration
+- `audit_ms` — audit_log stage duration
+- `validation_ms` — pre_validation + post_validation total
+- `total_ms` — sum of all stage timings
 
-`execute_isolated()` wraps tool execution in a thread with timeout:
-- Timeout → `EXECUTION_TIMEOUT` error envelope (tool thread abandoned, no cascade)
-- Exception → `EXECUTION_ERROR` error envelope (stack trace captured, pipeline continues)
-- Success → normal result propagation
+### 13.5 Persistent State
 
-### 13.5 Runtime Truth Alignment Notes
+`.ai/state/` stores:
+- `sessions/<session_id>.json` — session metadata
+- `traces/<request_id>.json` — full execution trace
+- `meta.json` — registry version, policy version, worker count
 
-- Architecture §3.5 specifies Unix socket gateway. v0.3.0 uses stdio. Unix socket deferred.
-- Architecture §3.4 specifies 8-stage pipeline. v0.3.0 implements 7 stages (Authentication merged into PreValidation for local-only scope).
-- Governance enforcement (§11) is now RUNTIME (PolicyEngine), not documentation-only.
-- Registry versioning active: loads v0.2.0 and v0.3.0; rejects unknown versions.
-- Execution trace is fully reconstructable from audit log alone (decision_path, stage_timings, error).
+All writes are atomic (temp file → rename). State survives process restarts.
 
 ---
 

@@ -1,16 +1,19 @@
-"""AI Workstation — Request Context Graph (v0.3.0)
+"""AI Workstation — Request Context Graph (v0.4.0)
 
 Every request carries a RequestContext through the middleware pipeline.
 Each stage appends a StageResult to the execution_trace array.
-The context enforces mandatory fields at construction time.
+
+v0.4.0 additions:
+  - queue_wait_time_ms: time spent waiting in the request queue
+  - worker_id: ID of the worker that processed this request
+  - pipeline_mode: "strict" | "optimized"
+  - latency_breakdown: dict with queue, routing, exec, audit timings
+  - policy_decision_graph: list of (policy_id, decision) for this request
 
 Mandatory fields:
   - request_id: unique identifier for the request
   - session_id: session context identifier
   - project_id: project isolation scope
-  - tool_id: resolved after routing stage
-  - execution_trace: ordered list of stage results
-  - timestamp_start / timestamp_end: request lifecycle boundaries
 """
 
 from __future__ import annotations
@@ -19,6 +22,10 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+
+PIPELINE_STRICT = "strict"
+PIPELINE_OPTIMIZED = "optimized"
 
 
 @dataclass
@@ -116,16 +123,22 @@ class RequestContext:
     error: Optional[str] = None
     error_code: Optional[str] = None
 
+    queue_wait_time_ms: float = 0.0
+    worker_id: str = ""
+    pipeline_mode: str = PIPELINE_STRICT
+    latency_breakdown: Dict[str, float] = field(default_factory=dict)
+    policy_decision_graph: List[Dict[str, Any]] = field(default_factory=list)
+
     @staticmethod
     def create(raw_request: dict) -> RequestContext:
-        """Factory: create RequestContext from a raw JSON request dict.
-
-        Validates mandatory fields. Returns a context even if invalid —
-        the PreValidation stage will deny it.
-        """
+        """Factory: create RequestContext from a raw JSON request dict."""
         request_id = raw_request.get("id") or f"auto_{uuid.uuid4().hex[:8]}"
         session_data = raw_request.get("session", {})
         params = raw_request.get("params", {})
+
+        mode = raw_request.get("pipeline_mode", PIPELINE_STRICT)
+        if mode not in (PIPELINE_STRICT, PIPELINE_OPTIMIZED):
+            mode = PIPELINE_STRICT
 
         return RequestContext(
             request_id=request_id,
@@ -134,6 +147,7 @@ class RequestContext:
             tool_id=params.get("tool"),
             capability=params.get("capability"),
             arguments=params.get("arguments", {}),
+            pipeline_mode=mode,
         )
 
     def finalize(self, status: str, result=None, error=None, error_code=None):
@@ -178,14 +192,19 @@ class RequestContext:
                 "project_id": self.project_id,
             },
             "execution": {
+                "pipeline_mode": self.pipeline_mode,
+                "worker_id": self.worker_id,
+                "queue_wait_time_ms": round(self.queue_wait_time_ms, 3),
                 "stages": self.full_trace(),
                 "decision_path": self.decision_path,
                 "total_ms": round(
                     sum(self.stage_timings.values()), 3
                 ) if self.stage_timings else 0,
+                "latency_breakdown": self.latency_breakdown,
                 "timestamp_start": self.timestamp_start,
                 "timestamp_end": self.timestamp_end,
             },
+            "policy_graph": self.policy_decision_graph,
         }
 
         if self.result is not None:

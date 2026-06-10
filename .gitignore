@@ -32,6 +32,10 @@ Thumbs.db
 *.log
 .ai/governance/audit/*.log
 
+# Runtime state (not source code)
+.ai/state/
+*.tmp
+
 # Python
 __pycache__/
 *.pyc

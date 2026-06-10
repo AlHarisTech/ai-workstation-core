@@ -79,7 +79,7 @@ The AI Engineering Workstation is a **Project-Agnostic AI Infrastructure Platfor
 
 ---
 
-## 5. Runtime Execution Principles (v0.3.0)
+## 5. Runtime Execution Principles (v0.4.0)
 
 These principles govern all runtime code under `/runtime/`.
 
@@ -108,18 +108,32 @@ Each stage returns `StageResult(decision="allow"|"deny")`. **DENY stops the pipe
 - Loading an unsupported version raises `IncompatibleRegistryVersionError` → gateway fatal.
 - No silent forward-incompatible registries. No breaking changes without version validation.
 
-### 5.5 Request Context Graph
-Every request carries a `RequestContext` with mandatory fields:
+### 5.5 Request Context Graph (v0.4.0 Enhanced)
+Every request carries a `RequestContext` with:
 - `request_id`, `session_id`, `project_id` (all required by POL-001)
+- `worker_id`: which worker processed this request
+- `queue_wait_time_ms`: time spent waiting in the dispatch queue
+- `pipeline_mode`: `strict` or `optimized`
 - `execution_trace`: ordered array of `StageResult` objects
 - `decision_path`: ordered list of stage names visited
 - `stage_timings`: dict[stage_name, ms duration]
+- `latency_breakdown`: queue, routing, execution, audit, validation timings
+- `policy_decision_graph`: list of (policy_id, decision) for this request
 - `timestamp_start` / `timestamp_end`: lifecycle boundaries
 
 ### 5.6 Deterministic Logging (Enhanced)
+
+### 5.6 Queue & Worker Governance (v0.4.0)
+- `RequestQueue` MUST enforce `max_size` backpressure. Queue full → `QUEUE_FULL` rejection.
+- `WorkerPool` creates persistent threads. Workers MUST NOT block indefinitely.
+- Worker ID is deterministic: `wrk_000`, `wrk_001`, etc.
+- StateStore writes are atomic (temp file → rename). No partial writes.
+- Pipeline mode is per-request. OPTIMIZED_MODE still runs audit_log at end.
+
+### 5.7 Deterministic Logging (Enhanced)
 - Every request produces exactly one audit log entry.
-- Log entries include: `execution_trace` (full stage history), `decision_path`, `stage_timings`, `error_code`.
-- Log is append-only. No rotation, no truncation in v0.3.0.
+- Log entries include: `execution_trace`, `decision_path`, `stage_timings`, `latency_breakdown`, `policy_decision_graph`, `queue_wait_time_ms`, `worker_id`.
+- Log is append-only. No rotation, no truncation in v0.4.0.
 
 ---
 

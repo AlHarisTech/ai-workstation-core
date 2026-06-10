@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] — 2026-06-10
+
+### Added
+
+- **Execution Queue Layer** — bounded FIFO `RequestQueue` with configurable max size and backpressure (`QUEUE_FULL` rejection)
+- **Shared Worker Pool** — N persistent worker threads (configurable via `AI_GATEWAY_WORKERS`) pulling from the queue
+- **Persistent State Layer** — file-based `StateStore` (.ai/state/) with atomic writes for sessions, execution traces, and platform metadata
+- **Composable Policy Engine** — `policy_decision_graph` tracks all policy decisions (allow + deny) per request
+- **Pipeline Dual Mode** — `strict` (7 stages) and `optimized` (6 stages) selectable per request via `pipeline_mode` field
+- **Latency Breakdown** — per-request `queue_wait_time_ms`, `routing_ms`, `execution_ms`, `audit_ms`, `validation_ms`
+- **Worker Observability** — `worker_id` and `queue_wait_time_ms` in every response and audit entry
+
+### Changed
+
+- `runtime/mcp_gateway/main.py` — rewritten: queue-driven architecture with worker pool, result collector, state persistence
+- `runtime/mcp_gateway/pipeline.py` — dual mode support; `_finalize_latency()`, `_run_audit_log()` on all paths
+- `runtime/mcp_gateway/context.py` — added `queue_wait_time_ms`, `worker_id`, `pipeline_mode`, `latency_breakdown`, `policy_decision_graph`
+- `runtime/governance/policy_engine.py` — `evaluate_stage()` appends to `policy_decision_graph`
+- `.ai/ARCHITECTURE.md` §13 — updated for v0.4.0 kernel architecture
+- `.ai/GOVERNANCE.md` §5 — added queue/worker governance, enhanced context fields
+- `.ai/ADR_LOG.md` — added ADR-007
+
+---
+
 ## [0.3.0] — 2026-06-10
 
 ### Added
