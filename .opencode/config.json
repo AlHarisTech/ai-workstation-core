@@ -3,10 +3,12 @@
   "lsp": {
     "gopls": {
       "env": {
-        "GOPROXY": "https://proxy.golang.org,direct"
+        "GOPROXY": "https://proxy.golang.org,direct",
+        "GOTOOLCHAIN": "local"
       },
       "initialization": {
-        "staticcheck": true
+        "staticcheck": true,
+        "gofumpt": true
       }
     }
   }
