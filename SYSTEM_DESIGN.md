@@ -37,9 +37,97 @@ To provide a safe, observable, and adaptive execution environment for MCP-based 
 
 ---
 
-## 2. High-Level Architecture
+## 2. System Evolution Model
 
-### 2.1 Runtime Architecture
+MCP Runtime evolved through structured phases:
+
+### Phase 1 — Execution Layer
+- Simple tool execution
+- No intelligence
+- Static routing
+
+### Phase 2 — Adaptive Decision Runtime
+- Introduction of scoring engine
+- Knowledge integration (ChromaDB)
+- Learning feedback loop
+
+### Phase 3 — Stability & Governance
+- Stability engine added (oscillation control)
+- Decision trace layer introduced
+- Full observability pipeline
+
+### Phase 4 — Control Plane Introduction (v3.0)
+- Enforcement Gate introduced as single control point
+- Separation of decision vs enforcement
+
+### Phase 5 — Observability Intelligence (v3.1)
+- Policy Intelligence layer added
+- Drift detection system
+- Suggestion engine (non-influential)
+
+### Current State
+- System is in **HARDENING FREEZE** mode
+- No architectural expansion allowed
+
+---
+
+## 3. Core Architecture Model
+
+The system is divided into three strict planes:
+
+### 3.1 Execution Plane (Deterministic)
+- Gateway
+- MCP Adapters
+- Execution Core
+
+**Rule:** Executes only validated and enforced decisions.
+
+---
+
+### 3.2 Intelligence Plane (Adaptive Decisioning)
+- Scoring Engine
+- Stability Engine
+- Learning Engine
+- Decision Engine
+
+**Rule:** Influences decision only, never enforcement.
+
+---
+
+### 3.3 Control Plane (Authority Layer)
+- Enforcement Gate (v3.0)
+
+**Rule:** Only system component allowed to block execution.
+
+---
+
+### 3.4 Observability Plane (Passive Intelligence)
+- Policy Intelligence (v3.1)
+- Governance Audit
+- Decision Trace System
+
+**Rule:** No influence on execution or decision flow.
+
+---
+
+## 4. Architectural Separation Principle
+
+The system enforces strict separation between:
+
+- **Control** (Enforcement)
+- **Intelligence** (Decision-making)
+- **Observation** (Telemetry)
+
+This ensures:
+- Predictable execution
+- Safe adaptability
+- Auditable system behavior
+
+---
+
+## 5. Runtime Architecture
+
+### 5.1 Execution Pipeline
 
 ```
 Request
@@ -69,7 +157,7 @@ Governance Audit
 Policy Intelligence (OBSERVABILITY ONLY)
 ```
 
-### 2.2 System Boundaries
+### 5.2 System Boundaries
 
 **🔴 Control Boundary**  
 Enforcement Gate is the only control authority. No other layer can block execution.
@@ -82,9 +170,9 @@ Policy Intelligence is a read-only observer. No feedback into runtime decision f
 
 ---
 
-## 3. Core Components
+## 6. Core Components
 
-### 3.1 Execution Core
+### 6.1 Execution Core
 
 **Responsibility:** Execute MCP tool operations safely.
 
@@ -94,7 +182,7 @@ Includes:
 
 **Constraint:** Deterministic execution only. No intelligence logic.
 
-### 3.2 Enforcement Layer (v3.0)
+### 6.2 Enforcement Layer (v3.0)
 
 **Responsibility:** Final control checkpoint before execution.
 
@@ -105,7 +193,7 @@ Functions:
 
 **Guarantee:** Does NOT modify decisions — only approves or rejects.
 
-### 3.3 Decision Engine
+### 6.3 Decision Engine
 
 **Responsibility:** Select best MCP server for execution.
 
@@ -116,7 +204,7 @@ Inputs:
 
 Output: Single execution decision.
 
-### 3.4 Learning Engine
+### 6.4 Learning Engine
 
 **Responsibility:** Improve future decisions.
 
@@ -125,7 +213,7 @@ Mechanism:
 - Weight updates per server
 - Historical correlation tracking
 
-### 3.5 Stability Engine
+### 6.5 Stability Engine
 
 **Responsibility:** Prevent unstable routing behavior.
 
@@ -135,7 +223,7 @@ Features:
 - Exploration decay
 - Stability bias accumulation
 
-### 3.6 Policy Intelligence (v3.1)
+### 6.6 Policy Intelligence (v3.1)
 
 **Type:** Passive Observability Layer
 
@@ -146,14 +234,14 @@ Features:
 
 **Strict Constraint:** No influence on routing, scoring, or enforcement.
 
-### 3.7 Governance Audit
+### 6.7 Governance Audit
 
 **Responsibility:**
 - Immutable system logging
 - Full traceability of execution lifecycle
 - Enforcement outcome capture (allowed / blocked + reason)
 
-### 3.8 Decision Trace (v2.9)
+### 6.8 Decision Trace (v2.9)
 
 **Responsibility:**
 - Per-request explainability
@@ -162,21 +250,21 @@ Features:
 
 ---
 
-## 4. Data Flow Model
+## 7. Data Flow Model
 
-### 4.1 Execution Flow
+### 7.1 Execution Flow
 
 ```
 Request → Validate → Resolve → Score → Decide → Enforce → Execute
 ```
 
-### 4.2 Observability Flow
+### 7.2 Observability Flow
 
 ```
 Enforcement Result → Policy Event → Drift Analysis → Suggestion Output
 ```
 
-### 4.3 Trace Flow
+### 7.3 Trace Flow
 
 ```
 Each stage appends TraceStep → DecisionTrace attached to ResponseMeta
@@ -184,86 +272,118 @@ Each stage appends TraceStep → DecisionTrace attached to ResponseMeta
 
 ---
 
-## 5. Metrics Model
+## 8. Metrics Model
 
-### 5.1 Execution Metrics
+### 8.1 Execution Metrics
 - Success rate
 - Execution latency
 - MCP server utilization
 
-### 5.2 Decision Metrics
+### 8.2 Decision Metrics
 - Routing accuracy
 - Stability index
 - Decision entropy
 
-### 5.3 Enforcement Metrics
+### 8.3 Enforcement Metrics
 - Block rate
 - False rejection ratio
 - Policy violation frequency
 
-### 5.4 Learning Metrics
+### 8.4 Learning Metrics
 - Convergence speed
 - Weight drift rate
 - Historical success correlation
 
-### 5.5 Observability Metrics
+### 8.5 Observability Metrics
 - Event completeness
 - Drift detection frequency
 - Suggestion generation rate
 
 ---
 
-## 6. System Constraints
+## 9. System Hard Constraints (v3.1 Stable Mode)
 
-### 6.1 Hard Constraints
-- No modification of enforcement logic (v3.0 frozen)
+- No architectural expansion allowed during stabilization phase
+- Enforcement Gate is the only control authority
+- Policy Intelligence is strictly observer-only
+- Decision Engine cannot be influenced by observability data
+- All layers must remain additive, never modifying existing behavior
+- System must remain deterministic under load
 - No feedback from Policy Intelligence to decision pipeline
-- No dynamic architecture expansion during hardening phase
-
-### 6.2 Stability Rules
-- Deterministic execution required
-- No oscillation in routing decisions
-- Observability must not affect runtime behavior
 
 ---
 
-## 7. Testing Strategy
+## 10. Testing Strategy
 
-### 7.1 Functional Tests
+### 10.1 Functional Tests
 - Gateway routing correctness
 - MCP adapter behavior
 - Enforcement accuracy
 
-### 7.2 Stress Tests
+### 10.2 Stress Tests
 - High concurrency execution
 - Burst event policy recording
 - Memory stability under load
 
-### 7.3 Regression Tests
+### 10.3 Regression Tests
 - Zero change in routing behavior
 - Zero change in enforcement output
 
-### 7.4 Observability Tests
+### 10.4 Observability Tests
 - Policy event completeness
 - Drift detection accuracy
 - Suggestion consistency
 
 ---
 
-## 8. Deployment Model
+## 11. Extended System Pillars
 
-### 8.1 Release Type
+### 11.1 Observability & Policy Intelligence (Priority 1)
+- Event recording system
+- Drift detection
+- Suggestion engine
+- Non-invasive monitoring
+
+---
+
+### 11.2 Benchmark & Performance Layer (Priority 2)
+- Load testing engine
+- Latency profiling
+- Decision throughput metrics
+- Stress simulation
+
+---
+
+### 11.3 Security & Threat Model (Priority 3)
+- MCP abuse detection
+- Injection protection
+- Server trust scoring
+- Execution isolation model
+
+---
+
+### 11.4 Architecture Specification Layer (Priority 4)
+- System contracts definition
+- Component interaction diagrams
+- API boundaries
+- Evolution rules
+
+---
+
+## 12. Deployment Model
+
+### 12.1 Release Type
 Hardened stable runtime release.
 
-### 8.2 Versioning
+### 12.2 Versioning
 `v3.1.0-stable`
 
-### 8.3 Deployment Principle
+### 12.3 Deployment Principle
 Zero architectural expansion during stabilization phase.
 
 ---
 
-## 9. Evolution Model
+## 13. Evolution Model
 
 **Current Phase:** Stabilization / Hardening Phase
 
@@ -275,7 +395,7 @@ Allowed Future Phases (not active):
 
 ---
 
-## 10. Summary
+## 14. Summary
 
 MCP Runtime v3.1 represents:
 
