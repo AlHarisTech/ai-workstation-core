@@ -79,11 +79,12 @@
 - Operations with slow execution paths (e.g., large file reads)
 
 **Mitigation:**
-- No built-in rate limiting in v3.1 — this is a known gap
+- Rate Limiter (Stage 0 pre-gateway): token bucket per `(clientID, operation)` — 100 req/min soft limit, 500 req/min global limit
+- On overflow: HTTP 429 + `PolicyEvent{decision: rate_limited}`
 - Execution timeout (30s) per operation
 - Backpressure at 200 in-flight requests
 
-**Residual risk:** High — rate limiting is absent; relies on external protection (API gateway, reverse proxy).
+**Residual risk:** Low — rate limiting prevents resource exhaustion; operates entirely outside the internal decision pipeline.
 
 ---
 
@@ -144,7 +145,7 @@
 | T1 | Request injection | Low | High | Medium | Validate + Resolve + Enforcement |
 | T2 | Enforcement bypass | Low | Critical | Medium | Network isolation + exact matching |
 | T3 | Scoring manipulation | Medium | Medium | Medium | Enforcement override |
-| T4 | Resource exhaustion | High | Medium | **High** | **No rate limiting (gap)** |
+| T4 | Resource exhaustion | Low | Medium | Medium | Rate Limiter (token bucket, Stage 0) |
 | T5 | Knowledge poisoning | Low | High | Medium | Query-only account |
 | T6 | Data leakage | Low | Low | Low | Intentional transparency |
 | T7 | Malicious server | Medium | High | Medium | Opaque response handling |
@@ -153,7 +154,7 @@
 
 ## 4. Recommended Hardening (Post-Freeze)
 
-1. **Rate limiting layer** — per-client, per-operation token bucket before Stage 1
+1. ~~Rate limiting layer~~ — **IMPLEMENTED in v3.1.1 as RateLimiter (Stage 0)** — token bucket per (clientID, operation) pre-gateway
 2. **Policy rule versioning** — add timestamps to `PolicyRule` for audit trail lineage
 3. **DecisionTrace encryption** — optional HMAC signature to prevent client tampering
 4. **Server health probes** — detect compromised or slow servers before routing to them

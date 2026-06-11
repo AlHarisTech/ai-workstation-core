@@ -1,6 +1,6 @@
 # MCP Runtime System Design Document
-**Version:** v3.1.0-stable  
-**Status:** Production Hardened (Stabilization Phase)
+**Version:** v3.1.1-stable  
+**Status:** Production Hardened (Stabilization Phase — Hardening Patch v3.1.1)
 
 ---
 
@@ -132,6 +132,8 @@ This ensures:
 ```
 Request
   ↓
+[Stage 0: Rate Limiter]  ← Edge layer (pre-gateway, not part of internal pipeline)
+  ↓ (if under limit)
 Validation Layer
   ↓
 Policy Layer
@@ -239,7 +241,7 @@ Features:
 **Responsibility:**
 - Immutable system logging
 - Full traceability of execution lifecycle
-- Enforcement outcome capture (allowed / blocked + reason)
+- Enforcement outcome capture (`decision`: allowed | blocked | audit | rate_limited + reason)
 
 ### 6.8 Decision Trace (v2.9)
 
@@ -301,7 +303,7 @@ Each stage appends TraceStep → DecisionTrace attached to ResponseMeta
 
 ---
 
-## 9. System Hard Constraints (v3.1 Stable Mode)
+## 9. System Hard Constraints (v3.1.1 Stable Mode)
 
 - No architectural expansion allowed during stabilization phase
 - Enforcement Gate is the only control authority
@@ -310,6 +312,23 @@ Each stage appends TraceStep → DecisionTrace attached to ResponseMeta
 - All layers must remain additive, never modifying existing behavior
 - System must remain deterministic under load
 - No feedback from Policy Intelligence to decision pipeline
+- Rate Limiter is edge-only (Stage 0) — never affects internal runtime flow
+- All invariants bound to specific components (see §10 Invariant Binding Table)
+
+---
+
+## 9.5 Invariant Binding Table
+
+| # | Invariant | Enforced By | Violation Consequence |
+|---|-----------|-------------|----------------------|
+| I1 | Enforcement is sole control authority | `EnforcementEngine.Check()` | Block bypass → critical security failure |
+| I2 | Intelligence cannot influence enforcement | `StabilityEngine`, `ScoringEngine`, `LearningEngine` | Enforcement corruption → loss of control plane integrity |
+| I3 | Deterministic execution | `selectBestServer()`, `Process()` | Non-deterministic routing → unpredictable behavior |
+| I4 | System works without intelligence | `Process()` stage orchestration | Intelligence crash → degrades to defaults, never blocks |
+| I5 | Traceability always on | `Process()` defer trace population | Missing trace → observability gap, non-fatal |
+| I6 | Policy Intelligence is passive | `PolicyIntelligenceEngine` design constraint | Active feedback → enforcement drift |
+| I7 | Fail-close on uncertainty | `EnforcementEngine.Check()` timeout handler | Fail-open → unauthorized execution |
+| I8 | Rate Limiter is edge-only | `RateLimiter` Stage 0 placement | Internal blocking → violates I1 |
 
 ---
 
@@ -319,7 +338,7 @@ All inter-layer communication must follow strict immutable contracts.
 
 ### 10.1 Core Event Model
 
-- **PolicyEvent** (immutable) — recorded by Policy Intelligence, never mutated
+- **PolicyEvent** (immutable) — recorded by Policy Intelligence or Rate Limiter, never mutated; single `decision` enum: `allowed | blocked | audit | rate_limited`
 - **DecisionContext** (read-only) — passed downstream, never modified by consumers
 - **EnforcementResult** (final authority output) — terminal, cannot be overridden
 
@@ -436,7 +455,7 @@ The following properties must always hold:
 Hardened stable runtime release.
 
 ### 15.2 Versioning
-`v3.1.0-stable`
+`v3.1.1-stable`
 
 ### 15.3 Deployment Principle
 Zero architectural expansion during stabilization phase.

@@ -1,6 +1,6 @@
 # MCP Runtime — Formal C4 Architecture Specification
 
-**Version:** v3.1.0-stable
+**Version:** v3.1.1-stable
 **Status:** Model-driven architecture specification (sidecar, read-only)
 **Relationship:** Zero modification of runtime source files — documentation layer only
 **Total:** ~1040 lines across 6 domains (Architecture, C4, Sequences, Contracts, Specs, Appendix)
@@ -49,6 +49,7 @@ v2.8       → Stability Engine (oscillation control)
 v2.9       → Decision Trace (per-request explainability)
 v3.0       → Enforcement Gate (control plane isolation)
 v3.1       → Policy Intelligence (passive observability)
+v3.1.1     → Hardening patch: PolicyEvent schema fix, rate-limiter design, invariant bindings, trace safety, identity doc, delta justification
 HARDENING  → Freeze — no further architectural expansion
 ```
 
@@ -314,7 +315,23 @@ sequenceDiagram
     GW-->>Client: MCP Error Response + DecisionTrace (blocked)
 ```
 
-## 6.3 Knowledge Timeout Fallback
+## 6.3 Rate Limit Block Flow
+
+```mermaid
+sequenceDiagram
+    participant Client as MCP Client
+    participant RL as Rate Limiter
+    participant PI as Policy Intelligence
+
+    Client->>RL: MCP Request
+    RL->>RL: Check token bucket (clientID, operation)
+    RL-->>RL: Overflow (100 req/min exceeded)
+    RL->>PI: Record PolicyEvent (rate_limited)
+    RL-->>Client: HTTP 429 + PolicyEvent{decision: rate_limited}
+    Note over RL: Request never enters internal pipeline
+```
+
+## 6.4 Knowledge Timeout Fallback
 
 ```mermaid
 sequenceDiagram
@@ -348,14 +365,14 @@ sequenceDiagram
     "actionType": { "type": "string", "enum": ["tool_call"], "description": "Always tool_call" },
     "operation":  { "type": "string", "description": "e.g. list_files, read_file, git_status" },
     "args":       { "type": "object", "description": "Operation-specific arguments" },
-    "userID":     { "type": "string", "description": "Originating user identifier" },
+    "userID":     { "type": "string", "description": "Originating user identifier — sourced from JWT sub, API key hash, or request metadata; optional runtime metadata, not authentication enforcement" },
     "timestamp":  { "type": "string", "format": "date-time", "description": "Request arrival time" }
   },
   "required": ["traceID", "actionType", "operation", "timestamp"]
 }
 ```
 
-**Invariant**: Created once in Stage 1, immutable for the request lifetime.
+**Invariant**: Created once in Stage 1, immutable for the request lifetime. `userID` is optional runtime metadata — the system does not implement authentication; `userID` is passed through from the upstream client if available.
 
 ## 7.2 PolicyEvent — JSON Schema
 
@@ -363,23 +380,22 @@ sequenceDiagram
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "PolicyEvent",
-  "description": "Telemetry primitive emitted by Enforcement Gate (Stage 5.5)",
+  "description": "Telemetry primitive emitted by Enforcement Gate (Stage 5.5) or Rate Limiter (Stage 0)",
   "type": "object",
   "properties": {
     "traceID":      { "type": "string", "description": "Links to DecisionContext" },
-    "server":       { "type": "string", "description": "Selected MCP server name" },
+    "server":       { "type": "string", "description": "Selected MCP server name (empty for rate_limited)" },
     "operation":    { "type": "string", "description": "Operation attempted" },
-    "allowed":      { "type": "boolean", "description": "Execution permitted" },
-    "blocked":      { "type": "boolean", "description": "Execution denied" },
-    "ruleMatched":  { "type": "string", "description": "allow-all | deny-* | audit-*" },
-    "reason":       { "type": "string", "description": "Populated when blocked" },
+    "decision":     { "type": "string", "enum": ["allowed", "blocked", "audit", "rate_limited"], "description": "Single deterministic outcome" },
+    "ruleMatched":  { "type": "string", "description": "allow-all | deny-* | audit-* | rate-limit" },
+    "reason":       { "type": "string", "description": "Populated when decision != allowed" },
     "timestamp":    { "type": "string", "format": "date-time" }
   },
-  "required": ["traceID", "server", "operation", "allowed", "blocked", "timestamp"]
+  "required": ["traceID", "server", "operation", "decision", "timestamp"]
 }
 ```
 
-**Invariant**: Append-only, write-once per enforcement check.
+**Invariant**: `decision` is a single mutually exclusive enum value — exactly one of `allowed`, `blocked`, `audit`, or `rate_limited` per event. Append-only, write-once per enforcement or rate-limit check.
 
 ## 7.3 EnforcementResult — Formal Spec
 
@@ -412,13 +428,18 @@ Invariant:
   All stages captured including errors and blocks
   Trace population is zero-overhead (never affects routing or execution decisions)
   Size capped at 128 steps; overflow truncates oldest
+
+Size constraints:
+  - Input / Output per TraceStep: ≤ 512 bytes each (soft limit, trunkated if exceeded)
+  - Total DecisionTrace per request: ≤ 64 KB recommended cap (soft limit)
 ```
 
 ## 7.5 Data Flow Constraints
 
 | Flow | Source → Target | Direction | Protocol | Safety |
 |------|----------------|-----------|----------|--------|
-| PolicyEvent | EnforcementEngine → PolicyIntelligenceEngine | Unidirectional, append-only | In-memory channel | Dropped at queue > 1000 |
+| PolicyEvent (enforcement) | EnforcementEngine → PolicyIntelligenceEngine | Unidirectional, append-only | In-memory channel | Dropped at queue > 1000 |
+| PolicyEvent (rate-limit) | RateLimiter → PolicyIntelligenceEngine | Unidirectional, append-only | In-memory channel | Dropped at queue > 1000 |
 | EnforcementResult | EnforcementEngine → Gateway.Process() | Return value | Synchronous call | Authoritative, no override |
 | DecisionTrace | Gateway.Process() → ResponseMeta | Attached copy | In-memory | Read-only after creation |
 | KnowledgeContext | ChromaDB → Gateway → Scoring | Advisory | HTTP query → in-memory | Timeout → empty fallback |
@@ -427,6 +448,23 @@ Invariant:
 ---
 
 # Section 8: Component Deep Specifications
+
+## 8.0 RateLimiter (Edge Layer — Pre-Gateway)
+
+| Property | Value |
+|----------|-------|
+| **Plane** | Execution (edge) |
+| **Role** | Pre-gateway request throttling — protects MCP servers from excessive traffic |
+| **Position** | Stage 0 — before Stage 1 (Validate). Not part of the internal decision pipeline |
+| **Algorithm** | Token Bucket per `(clientID, operation)` pair |
+| **Soft limit** | 100 req/min per `clientID`, per operation |
+| **Global limit** | 500 req/min aggregate across all clients |
+| **Burst allowance** | 10 tokens initial burst per client |
+| **On overflow** | Return HTTP 429 + emit `PolicyEvent{decision: "rate_limited", ruleMatched: "rate-limit"}` |
+| **Flow impact** | Rate-limited requests never enter the internal pipeline (Stages 1–8). The rate limiter is an edge gate, not a pipeline stage |
+| **Identifier** | `clientID` sourced from request metadata (see §7.1 identity handling) |
+| **State** | In-memory token counters per `(clientID, operation)` with periodic reset |
+| **Invariants** | Must never affect internal runtime flow; must never block requests under the limit; must never leak internal state to the client beyond the 429 response |
 
 ## 8.1 Gateway.Process()
 
@@ -492,6 +530,7 @@ Invariant:
 | **Input** | `(server, operation, success bool)` |
 | **Output** | `void` (side-effect: weight store update) |
 | **Weight delta** | Success → +0.01, Failure → -0.02 |
+| **Delta justification** | Asymmetric weighting (+0.01 success / -0.02 failure) is a deliberate conservative stability bias: failures penalized twice as heavily as successes rewarded. This prevents rapid weight inflation from a streak of lucky successes and ensures that a single failure meaningfully reduces a server's score. The asymmetry is capped by the stability engine's convergence bias, which can slowly restore a reliable server over time. This design prioritizes safety over rapid adaptation. |
 | **Invariants** | Never modifies enforcement rules; never blocks execution; updates are deferred (no live effect on current request) |
 
 ## 8.6 PolicyIntelligenceEngine
@@ -517,7 +556,7 @@ Invariant:
 
 | Scope | Components | Can Modify Enforcement? | Can Block Execution? |
 |-------|-----------|------------------------|---------------------|
-| **Inside Runtime** | Gateway, Engines, Adapters, Audit | No | Only EnforcementEngine |
+| **Inside Runtime** | Gateway, Engines, Adapters, Audit, RateLimiter | No | Only EnforcementEngine |
 | **Plugin/Adapter** | MCP Tool Servers | No | No (responses are opaque) |
 | **External Storage** | ChromaDB | No | No (timeout → fallback) |
 | **External Client** | MCP Client | No | No (requests are validated) |
@@ -588,15 +627,20 @@ Observability Plane:
   → CANNOT influence anything
 ```
 
-## 10.2 System Invariants
+## 10.2 Invariant Binding Table
 
-1. **Enforcement is sole control authority**: No other layer may block execution
-2. **Intelligence cannot influence decisions**: Scoring, stability, and learning do not affect enforcement outcomes
-3. **Execution is always deterministic**: Same input → same routing decision (modulo exploration)
-4. **System works without intelligence**: Scoring, stability, learning, and policy intelligence can all be removed; execution + enforcement + audit survive
-5. **Traceability is always on**: DecisionTrace is populated for every request, including errors and blocks
-6. **Policy Intelligence is passive**: No feedback loop into routing, scoring, or enforcement
-7. **Fail-close on uncertainty**: If enforcement cannot decide, it blocks
+Each system invariant is explicitly bound to the components that enforce it:
+
+| # | Invariant | Enforced By | Violation Consequence |
+|---|-----------|-------------|----------------------|
+| I1 | **Enforcement is sole control authority** — no other layer may block execution | `EnforcementEngine.Check()` | Block bypass → critical security failure |
+| I2 | **Intelligence cannot influence enforcement** — scoring, stability, learning never modify enforcement rules | `StabilityEngine`, `ScoringEngine`, `LearningEngine` | Enforcement corruption → loss of control plane integrity |
+| I3 | **Execution is always deterministic** — same input → same routing (modulo exploration) | `selectBestServer()`, `Process()` | Non-deterministic routing → unpredictable behavior |
+| I4 | **System works without intelligence** — all intelligence layers are removable; execution + enforcement + audit survive | `Process()` (stage orchestration) | Intelligence crash → routing degrades to defaults, never blocks |
+| I5 | **Traceability is always on** — every request produces a complete DecisionTrace | `Process()` (defer trace population), `TraceStep` | Missing trace → observability gap, non-fatal |
+| I6 | **Policy Intelligence is passive** — no feedback loop into routing, scoring, or enforcement | `PolicyIntelligenceEngine` (design constraint) | Active feedback → enforcement drift, non-determinism |
+| I7 | **Fail-close on uncertainty** — if enforcement cannot determine a decision, it blocks | `EnforcementEngine.Check()` (timeout/ambiguity handler) | Fail-open → unauthorized execution |
+| I8 | **Rate Limiter is edge-only** — never affects internal pipeline; only returns 429 pre-gateway | `RateLimiter` (Stage 0 placement) | Internal blocking → violates I1 (Enforcement sole authority) |
 
 ---
 
@@ -822,7 +866,7 @@ Final score: `baseScore + explorationAdjustment - oscillationPenalty + stability
 | T1 | MCP Request Injection | A03:2021 | Low | High | Medium | Validate + Resolve + Enforcement |
 | T2 | Enforcement Bypass | A01:2021 | Low | Critical | Medium | Network isolation + exact matching + fail-close |
 | T3 | Scoring Manipulation | A08:2021 | Medium | Medium | Medium | Enforcement override + decay + empty fallback |
-| T4 | DoS via Excessive Execution | A04:2021 | High | Medium | **High** | No rate limiting (gap) |
+| T4 | DoS via Excessive Execution | A04:2021 | Low | Medium | Medium | Rate Limiter (Stage 0 — token bucket per clientID/operation) |
 | T5 | Knowledge Base Poisoning | A08:2021 | Low | High | Medium | Query-only account + enforcement override |
 | T6 | Policy Intelligence Data Leakage | A05:2021 | Low | Low | Low | Intentional transparency (by design) |
 | T7 | Malicious MCP Server | A06:2021 | Medium | High | Medium | Opaque response handling + execution timeout |

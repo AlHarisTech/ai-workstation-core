@@ -1,6 +1,6 @@
 # MCP Runtime — C4 Architecture Model
 
-**Version:** v3.1.0-stable
+**Version:** v3.1.1-stable
 **Model:** C4 + Sequence Diagrams + Component Deep Specs
 
 ---
@@ -87,7 +87,8 @@ C4Container
 | `selectBestServer()` | `gateway.go` | `[]ServerCandidate` | `ServerCandidate` | Deterministic scores |
 | `EnforcementEngine.Check()` | `enforcement.go` | `(server, op)` | `EnforcementResult` | Sole blocking authority |
 | `StabilityEngine.AdjustScore()` | `feedback.go` | `(server, score, op)` | `adjustedScore` | Never blocks execution |
-| `LearningEngine.Update()` | `feedback.go` | `(server, op, success)` | `void` | No live effect on request |
+| `LearningEngine.Update()` | `feedback.go` | `(server, op, success)` | `void` | No live effect on request; delta: +0.01/-0.02 (safety-biased) |
+| `RateLimiter.Check()` | Edge | `(clientID, op)` | `allow/429` | Pre-gateway only; never enters pipeline |
 | `PolicyIntelligence.Record()` | `policy_intelligence.go` | `PolicyEvent` | `void` | Never feeds back |
 
 ---
@@ -117,6 +118,20 @@ flowchart TD
 ---
 
 ## 6. Sequence Diagrams
+
+### 6.0 Rate Limit Block
+```mermaid
+sequenceDiagram
+    participant Client as MCP Client
+    participant RL as Rate Limiter
+    participant PI as Policy Intelligence
+
+    Client->>RL: MCP Request
+    RL->>RL: Check token bucket
+    RL-->>RL: Overflow
+    RL->>PI: Record PolicyEvent (rate_limited)
+    RL-->>Client: HTTP 429
+```
 
 ### 6.1 Normal Request
 
@@ -174,24 +189,28 @@ Invariant: Allowed=false → pipeline terminates; no override possible
 
 ### PolicyEvent
 ```
-{ TraceID, Server, Operation, Allowed, Blocked, RuleMatched, Timestamp }
-Invariant: Append-only, write-once per enforcement check
+{ TraceID, Server, Operation, decision: "allowed"|"blocked"|"audit"|"rate_limited", RuleMatched, Timestamp }
+Invariant: Single mutually exclusive enum — exactly one value per event
 ```
 
 ### TraceStep
 ```
 { Stage: int, Component: string, Input, Output, Duration, Error }
 Invariant: All stages captured; cap at 128 steps
+Size: Input/Output ≤ 512 bytes each; total trace ≤ 64 KB
 ```
 
 ---
 
-## 9. System Invariants
+## 9. System Invariants (with Binding Table)
 
-1. **Enforcement is sole control authority** — no other layer blocks execution
-2. **Intelligence cannot influence decisions** — scores never affect enforcement
-3. **Deterministic execution** — same input → same routing (modulo exploration)
-4. **System works without intelligence** — execution + enforcement + audit survive
-5. **Traceability always on** — every request has DecisionTrace
-6. **Policy Intelligence is passive** — no feedback loop
-7. **Fail-close on uncertainty** — enforcement blocks when ambiguous
+| # | Invariant | Enforced By |
+|---|-----------|-------------|
+| I1 | Enforcement is sole control authority | `EnforcementEngine.Check()` |
+| I2 | Intelligence cannot influence enforcement | `StabilityEngine`, `ScoringEngine`, `LearningEngine` |
+| I3 | Deterministic execution | `selectBestServer()`, `Process()` |
+| I4 | System works without intelligence | `Process()` stage orchestration |
+| I5 | Traceability always on | `Process()` defer trace population |
+| I6 | Policy Intelligence is passive | `PolicyIntelligenceEngine` design constraint |
+| I7 | Fail-close on uncertainty | `EnforcementEngine.Check()` timeout handler |
+| I8 | Rate Limiter is edge-only | `RateLimiter` Stage 0 placement |

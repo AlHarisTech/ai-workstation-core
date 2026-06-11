@@ -9,6 +9,7 @@
 
 | Stage | Budget | Measured (v3.1) | Notes |
 |-------|--------|-----------------|-------|
+| Stage 0: Rate Limit | ≤ 20µs | — | Token bucket check (pre-gateway) |
 | Stage 1: Validate | ≤ 50µs | — | Request parsing + schema check |
 | Stage 2: Policy | ≤ 50µs | — | ACL lookup (Stage 2, pre-v3.0) |
 | Stage 3: Resolve | ≤ 100µs | — | Server capability matching |
@@ -51,7 +52,8 @@
 
 - **Fail-close during uncertainty**: if enforcement check exceeds 100ms or returns ambiguous, treat as `Block`
 - **Policy Intelligence recording**: non-blocking, dropped if write queue exceeds 1000 events
-- **DecisionTrace size cap**: 128 steps per trace; overflow is truncated (oldest step dropped)
+- **DecisionTrace size cap**: 128 steps per trace; overflow truncates oldest
+- **TraceStep size cap**: 512 bytes per Input/Output (soft limit); total trace ≤ 64 KB (soft limit)
 
 ---
 
