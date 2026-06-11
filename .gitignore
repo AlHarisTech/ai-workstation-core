@@ -10,6 +10,12 @@
 *.swp
 *.swo
 *~
+SESSION_SUMMARY.md
+ANCHORED_SUMMARY.md
+
+# Compiled binaries (Go build artifacts)
+bootstrap
+*.exe
 
 # Operating system files
 .DS_Store
@@ -33,7 +39,8 @@ Thumbs.db
 .ai/governance/audit/*.log
 
 # Runtime state (not source code)
-.ai/state/
+.ai/
+**/.ai/
 *.tmp
 
 # Python

@@ -1,0 +1,39 @@
+{
+  "id": "test-postgres-001",
+  "timestamp": "2026-06-10T00:00:00Z",
+  "source": "opencode",
+  "type": "mcp.request",
+  "action": {
+    "type": "postgres",
+    "operation": "list_tables",
+    "version": "1.0"
+  },
+  "context": {
+    "tenant_id": "t1",
+    "session_id": "s1",
+    "trace_id": "trace-pg-1",
+    "workspace": {
+      "path": ".",
+      "repo": "workspace"
+    }
+  },
+  "payload": {
+    "resource": "db",
+    "parameters": {}
+  },
+  "auth": {
+    "type": "bearer",
+    "scope": ["postgres:read"]
+  },
+  "policy": {
+    "allow": ["postgres.*"],
+    "deny": []
+  },
+  "meta": {
+    "priority": "high",
+    "timeout_ms": 30000,
+    "retry": 1,
+    "trace_id": "trace-pg-1",
+    "span_id": "span-pg-1"
+  }
+}

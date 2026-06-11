@@ -1,0 +1,39 @@
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "timestamp": "2026-06-10T00:00:00Z",
+  "source": "opencode",
+  "type": "mcp.request",
+  "action": {
+    "type": "filesystem",
+    "operation": "list",
+    "version": "1.0"
+  },
+  "context": {
+    "tenant_id": "t1",
+    "session_id": "s1",
+    "trace_id": "trace-1",
+    "workspace": {
+      "path": ".",
+      "repo": "workspace"
+    }
+  },
+  "payload": {
+    "resource": ".",
+    "parameters": {}
+  },
+  "auth": {
+    "type": "bearer",
+    "scope": ["filesystem:read"]
+  },
+  "policy": {
+    "allow": ["filesystem.*"],
+    "deny": []
+  },
+  "meta": {
+    "priority": "high",
+    "timeout_ms": 30000,
+    "retry": 1,
+    "trace_id": "trace-1",
+    "span_id": "span-1"
+  }
+}

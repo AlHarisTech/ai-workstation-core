@@ -35,14 +35,14 @@ func TestReleaseOrchestrator_EmptyTokenFailsTagCreation(t *testing.T) {
 	})
 
 	req := types.MCPRequest{ID: "r1", Payload: map[string]any{
-		"version":    "v1.0.0",
-		"commit_sha": "abc123",
+		"version":    "v0.0.0-test-nonexistent",
+		"commit_sha": "abc123def4567890",
 	}}
 	resp, err := orch.Execute(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Tag creation requires auth (GitHub API), so empty token = tag failure
+	// Non-existent commit SHA causes git tag to fail
 	if resp.Success {
 		t.Fatal("expected failure when tag creation fails")
 	}
