@@ -1,6 +1,6 @@
 # MCP Runtime — Benchmark Specification
 
-**Version:** v3.1.0-stable  
+**Version:** v3.1.1-stable  
 **Status:** Reference Specification (not implemented)
 
 ---

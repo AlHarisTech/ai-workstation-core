@@ -1,6 +1,6 @@
 # MCP Runtime — Threat Model
 
-**Version:** v3.1.0-stable  
+**Version:** v3.1.1-stable  
 **Methodology:** OWASP Application Threat Modeling  
 **Scope:** MCP-specific attack surface
 

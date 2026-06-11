@@ -1,6 +1,6 @@
 # MCP Runtime — Architecture Pack
 
-**Version:** v3.1.0-stable  
+**Version:** v3.1.1-stable  
 **Status:** Documentation Layer (Read-only, Non-invasive)  
 **Relationship:** Sidecar to runtime system — zero modification of any source file
 
