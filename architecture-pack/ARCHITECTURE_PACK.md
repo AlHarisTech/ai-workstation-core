@@ -227,6 +227,8 @@ C4Component
 
 ## 5.1 Pipeline Diagram
 
+*Note: Stage 0 (Rate Limiter) sits before this pipeline as a pre-gateway edge layer. If the rate limit is exceeded, the request returns HTTP 429 and never enters Stage 1. The pipeline below represents the internal decision flow (Stages 1–8) only.*
+
 ```mermaid
 flowchart TD
     A["MCP Request"] --> B["Stage 1: Validate"]
@@ -730,7 +732,7 @@ Approach 1 rejected: creates destabilizing feedback loop; violates control/obser
 ## Decision
 
 Implement **Policy Intelligence** as strictly passive:
-- Records every `PolicyEvent` (TraceID, Server, Operation, Allowed, Blocked, Reason)
+- Records every `PolicyEvent` (TraceID, Server, Operation, decision: allowed|blocked|audit|rate_limited, Reason)
 - Maintains per-server+operation weights (+0.01 allow, -0.02 block)
 - Detects drift (≥3 blocks in last 10 events for same key)
 - Generates non-binding suggestions (`review_policy` with confidence [0.5, 0.95])
@@ -789,6 +791,7 @@ Final score: `baseScore + explorationAdjustment - oscillationPenalty + stability
 
 | Stage | Budget | Notes |
 |-------|--------|-------|
+| Stage 0: Rate Limit | ≤ 20µs | Token bucket check (pre-gateway edge layer) |
 | Stage 1: Validate | ≤ 50µs | Request parsing + schema check |
 | Stage 2: Policy | ≤ 50µs | ACL lookup (Stage 2, pre-v3.0) |
 | Stage 3: Resolve | ≤ 100µs | Server capability matching |
@@ -800,7 +803,7 @@ Final score: `baseScore + explorationAdjustment - oscillationPenalty + stability
 | Stage 7: Learn + Governance | ≤ 100µs | Weight update + audit write |
 | Stage 8: Normalize | ≤ 50µs | Response formatting + trace attach |
 
-**Total system overhead (Stages 1–5 + 7–8, excluding execute):** ≤ 1ms p99
+**Total system overhead (Stages 0–5 + 7–8, excluding execute):** ≤ 1ms p99
 
 ## D2. Decision Throughput SLA
 
