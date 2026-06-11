@@ -1,83 +1,88 @@
-# MCP Runtime — Architecture Pack (Complete Reference)
+# MCP Runtime — Formal C4 Architecture Specification
 
-**Version:** v3.1.0-stable — **File count:** 6 — **Total lines:** 543
-**Relationship:** Sidecar documentation layer — zero modification of runtime source files
-
-> ChatGPT/Known Model Instructions: This file contains 6 sections representing individual files of the Architecture Pack. Each section is clearly delimited with a header `# FILE: <filename>`. Use the index below to locate the specific file you need to answer the user's question. All architectural decisions, benchmarks, and threat models are self-contained within this document.
+**Version:** v3.1.0-stable
+**Status:** Model-driven architecture specification (sidecar, read-only)
+**Relationship:** Zero modification of runtime source files — documentation layer only
+**Total:** ~700 lines across 4 domains (Architecture, Design Decisions, Benchmark, Threat)
 
 ---
 
 ## Index
 
-| # | File | Purpose | Line |
-|---|------|---------|------|
-| 1 | `README.md` | Pack overview, governance rules, contents | 1 |
-| 2 | `ARCHITECTURE.md` | C4 Model (Context → Container → Component → Flow) | 26 |
-| 3 | `ADR/ADR-001-enforcement-gate-isolation.md` | Why Enforcement is the sole control authority | 125 |
-| 4 | `ADR/ADR-002-passive-policy-intelligence.md` | Why Policy Intelligence is observer-only | 189 |
-| 5 | `ADR/ADR-003-stability-engine-independence.md` | Why Stability Engine is independent of scoring | 257 |
-| 6 | `BENCHMARK_SPEC.md` | SLA bounds, latency budgets, stress thresholds | 333 |
-| 7 | `THREAT_MODEL.md` | MCP threat model with OWASP mapping | 420 |
+| # | Section | Purpose | Line |
+|---|---------|---------|------|
+| 1 | Architecture Overview | 4-plane model, system boundary map | 27 |
+| 2 | C4 — Context Diagram | System boundaries, external actors, relationships | 54 |
+| 3 | C4 — Container Diagram | Runtime + Intelligence + Control + Observability containers | 101 |
+| 4 | C4 — Component Diagram | Per-plane component decomposition with file mapping | 147 |
+| 5 | C4 — Execution Flow | Stage-by-stage pipeline with data handoffs | 205 |
+| 6 | Data Flow Contracts | DecisionContext, PolicyEvent, EnforcementResult, TraceStep schemas | 233 |
+| 7 | System Boundaries | Inside/outside/plugin rules with invariants | 307 |
+| 8 | Cross-plane Interaction Rules | Authority enforcement, plane isolation, invariants | 335 |
+| 9 | Architecture vs Runtime Separation | Documentation layer contract | 360 |
+| Appendix A | ADR-001: Enforcement Gate Isolation | Why Control Plane is separate | 382 |
+| Appendix B | ADR-002: Passive Policy Intelligence | Why Observability is observer-only | 427 |
+| Appendix C | ADR-003: Stability Engine Independence | Why Intelligence Plane is independent | 486 |
+| Appendix D | Benchmark Specification | SLA bounds, latency budgets, stress thresholds | 540 |
+| Appendix E | Threat Model | OWASP-based MCP attack surface | 620 |
 
 ---
 
-# FILE: README.md
+# Section 1: Architecture Overview
 
-> Lines 1–25 of 38
+## 1.1 Four-Plane Model
 
-# MCP Runtime — Architecture Pack
+| Plane | Components | Authority | Data Flow Direction |
+|-------|-----------|-----------|-------------------|
+| **Execution** | Gateway, MCP Adapters, Router | Deterministic execution | Bidirectional (request → server → response) |
+| **Intelligence** | Scoring, Stability, Learning, Exploration | Decision influence only | Read scores → apply adjustments |
+| **Control** | Enforcement Engine | Allow/Block authority (sole) | Read enforcement rules → return decision |
+| **Observability** | Decision Trace, Governance Audit, Policy Intelligence | Recording only | Append-only write |
 
-**Version:** v3.1.0-stable  
-**Status:** Documentation Layer (Read-only, Non-invasive)  
-**Relationship:** Sidecar to runtime system — zero modification of any source file
+## 1.2 Evolution Trace
 
----
-
-## Purpose
-
-This pack is a **formal documentation layer** that exists independently of the runtime implementation. It captures:
-
-- **Visual architecture** (C4 model: context → container → component → execution flow)
-- **Design decisions** (ADRs: why every architectural choice was made)
-- **Performance envelope** (SLA bounds, latency budgets, stress thresholds)
-- **Threat model** (MCP-specific attack surface, trust boundaries, abuse scenarios)
-
-## Governance Rules
-
-- NO file under `runtime/` is touched
-- NO behavioral specification overrides implementation
-- This layer is **read-only knowledge**, not executable configuration
-
-## Contents
-
-| File | Purpose |
-|------|---------|
-| `ARCHITECTURE.md` | C4 Model — all four levels with Mermaid diagrams |
-| `ADR/ADR-001-enforcement-gate-isolation.md` | Why Enforcement is the sole control authority |
-| `ADR/ADR-002-passive-policy-intelligence.md` | Why Policy Intelligence is observer-only |
-| `ADR/ADR-003-stability-engine-independence.md` | Why Stability Engine operates independently of scoring |
-| `BENCHMARK_SPEC.md` | Performance envelope — latency, throughput, stress thresholds |
-| `THREAT_MODEL.md` | MCP-specific threat model with OWASP mapping |
-
-## Relationship to SYSTEM_DESIGN.md
-
-SYSTEM_DESIGN.md is the **contract-level specification**.  
-This pack is the **visualisation + rationale + measurement + security companion**.
+```
+v2.1–v2.7  → Knowledge + Governance + Exploration
+v2.8       → Stability Engine (oscillation control)
+v2.9       → Decision Trace (per-request explainability)
+v3.0       → Enforcement Gate (control plane isolation)
+v3.1       → Policy Intelligence (passive observability)
+HARDENING  → Freeze — no further architectural expansion
+```
 
 ---
 
-# FILE: ARCHITECTURE.md
+# Section 2: C4 — Context Diagram
 
-> Lines 26–117 of 543
+## 2.1 System Boundary Map
 
-# MCP Runtime — C4 Architecture Model
+```
+┌─────────────────────────────────────────────────┐
+│                 EXTERNAL WORLD                   │
+│                                                   │
+│  ┌──────────┐     ┌──────────────────────┐       │
+│  │   MCP    │     │   MCP Tool Servers   │       │
+│  │  Client  │     │  (Git, FS, Memory,   │       │
+│  │ (Public) │     │   GitHub, Fetch,     │       │
+│  └────┬─────┘     │   Context7, Postgres,│       │
+│       │           │   ChromaDB HTTP)     │       │
+│       │ MCP Req   └──────────┬───────────┘       │
+│       ▼                      │                    │
+│  ┌─────────────────────────────────────────┐      │
+│  │         MCP RUNTIME v3.1                │      │
+│  │  (Decision + Control + Execution +      │      │
+│  │         Observability)                  │      │
+│  └──────────────────────┬──────────────────┘      │
+│                         │                         │
+│                  ┌──────▼──────┐                  │
+│                  │  ChromaDB   │                  │
+│                  │   Cloud     │                  │
+│                  │ (Knowledge) │                  │
+│                  └─────────────┘                  │
+└─────────────────────────────────────────────────┘
+```
 
-**Version:** v3.1.0-stable  
-**Model:** C4 (Context → Container → Component → Execution Flow)
-
----
-
-## Level 1: System Context Diagram
+## 2.2 C4 Context Diagram (Mermaid)
 
 ```mermaid
 C4Context
@@ -86,30 +91,39 @@ C4Context
   System_Ext(mcpServers, "MCP Tool Servers", "Git, Filesystem, Memory, GitHub, Fetch, Context7, Postgres, ChromaDB")
   System_Ext(chromaDB, "ChromaDB Cloud", "Knowledge retrieval for routing context")
 
-  Rel(user, runtime, "Sends MCP request")
-  Rel(runtime, mcpServers, "Executes tool operation")
-  Rel(runtime, chromaDB, "Queries execution knowledge")
+  Rel(user, runtime, "Sends MCP request", "MCP/JSON-RPC")
+  Rel(runtime, mcpServers, "Executes tool operation", "HTTP/stdio")
+  Rel(runtime, chromaDB, "Queries execution knowledge", "HTTP")
 ```
+
+## 2.3 System Boundary Rules
+
+- **Inside MCP Runtime**: All decision logic, enforcement, execution orchestration, observability
+- **Outside (controlled)**: MCP Tool Servers (pre-registered), ChromaDB (query-only)
+- **Outside (untrusted)**: MCP Client (public, unauthenticated)
+- **Rule**: No external system can influence enforcement logic directly
 
 ---
 
-## Level 2: Container Diagram
+# Section 3: C4 — Container Diagram
+
+## 3.1 Container Map
 
 ```mermaid
 C4Container
-  Boundary(gateway, "MCP Gateway", "core routing + enforcement container") {
+  Boundary(gateway, "MCP Gateway Container", "runtime/mcp/v2/gateway.go") {
     Container(processor, "Request Processor", "Go", "Validates, resolves, scores, enforces, executes")
     Container(router, "Router", "Go", "Maps action types to MCP server capabilities")
     Container(enforcer, "Enforcement Engine", "Go", "Allow/Block control gate before execution")
   }
 
-  Boundary(intelligence, "Intelligence Layer", "adaptive decisioning") {
+  Boundary(intelligence, "Intelligence Layer Container", "runtime/mcp/v2/feedback.go") {
     Container(scoring, "Scoring Engine", "Go", "Scores candidates by capability, knowledge, history")
     Container(stability, "Stability Engine", "Go", "Oscillation detection, exploration decay, convergence")
     Container(learning, "Learning Engine", "Go", "Weight updates per outcome")
   }
 
-  Boundary(observability, "Observability Layer", "passive telemetry") {
+  Boundary(observability, "Observability Layer Container", "runtime/mcp/v2/") {
     Container(trace, "Decision Trace", "Go", "Per-request step capture")
     Container(policyIntel, "Policy Intelligence", "Go", "Event recording, drift detection, suggestions")
     Container(audit, "Governance Audit", "Go", "Immutable structured logging")
@@ -125,9 +139,25 @@ C4Container
   Rel(enforcer, policyIntel, "Records enforcement event")
 ```
 
+## 3.2 Container Ownership Map
+
+| Container | File(s) | Plane | Lifecycle |
+|-----------|---------|-------|-----------|
+| Request Processor | `gateway.go` | Execution | Per-request (instantiated per call) |
+| Router | `gateway.go` | Execution | Per-request |
+| Scoring Engine | `feedback.go`, `schema.go` | Intelligence | Per-request + persistent weights |
+| Stability Engine | `feedback.go` | Intelligence | Persistent (accumulates state) |
+| Learning Engine | `feedback.go` | Intelligence | Per-request (appends) |
+| Enforcement Engine | `enforcement.go` | Control | Persistent (rule map) |
+| Policy Intelligence | `policy_intelligence.go` | Observability | Persistent (event store) |
+| Decision Trace | `schema.go` | Observability | Per-request (attached to response) |
+| Governance Audit | `governance.go` | Observability | Per-request (appends to log) |
+
 ---
 
-## Level 3: Component Diagram (Gateway)
+# Section 4: C4 — Component Diagram
+
+## 4.1 Execution Plane Components
 
 ```mermaid
 C4Component
@@ -137,12 +167,13 @@ C4Component
     Component(errorResp, "errorResponse()", "Go func", "Standardised error envelope")
   }
 
-  Boundary(engines, "Engines", "supporting components") {
+  Boundary(engines, "Engine Components", "runtime/mcp/v2/") {
     Component(ee, "EnforcementEngine", "enforcement.go", "PolicyRule map + Check()")
     Component(se, "StabilityEngine", "feedback.go", "EffectiveRate + AdjustScore + RecordSelection")
     Component(le, "LearningEngine", "feedback.go", "WeightsFor + Update")
     Component(es, "ExplorationState", "feedback.go", "AdjustScoreWithRate")
     Component(pie, "PolicyIntelligenceEngine", "policy_intelligence.go", "Record + DetectDrift + GenerateSuggestions")
+    Component(adapter, "MCP Adapters", "adapters.go", "HTTP/stdio server communication")
   }
 
   Rel(process, selectBest, "Delegates scoring")
@@ -153,54 +184,267 @@ C4Component
   Rel(ee, pie, "Post-enforcement event")
 ```
 
+## 4.2 Component Responsibilities
+
+| Component | Responsibility | Input | Output |
+|-----------|---------------|-------|--------|
+| `Process()` | Stage orchestration | `MCPRequest` | `MCPResponse` |
+| `selectBestServer()` | Candidate ranking | `[]ServerCandidate` | `ServerCandidate` (selected) |
+| `EnforcementEngine.Check()` | Gate check | `(server, operation)` | `EnforcementResult` |
+| `StabilityEngine.AdjustScore()` | Stability adjustment | `(server, score, operation)` | `adjustedScore float64` |
+| `LearningEngine.Update()` | Weight learning | `(server, operation, success)` | `void` |
+| `PolicyIntelligence.Record()` | Event recording | `PolicyEvent` | `void` |
+
 ---
 
-## Level 4: Execution Flow Diagram
+# Section 5: C4 — Execution Flow
+
+## 5.1 Pipeline Diagram
 
 ```mermaid
 flowchart TD
-    A["Request"] --> B["Stage 1: Validate"]
+    A["MCP Request"] --> B["Stage 1: Validate"]
     B -->|fail| ERR1["Validation Error"]
-    B -->|pass| C["Stage 2: Policy"]
+    B -->|pass| C["Stage 2: Policy (ACL)"]
     C -->|deny| ERR2["Policy Denied"]
-    C -->|allow| D["Stage 3: Resolve"]
+    C -->|allow| D["Stage 3: Resolve Server"]
     D -->|not found| ERR3["Route Not Found"]
-    D -->|found| E["Stage 4: Knowledge"]
+    D -->|found| E["Stage 4: Knowledge (ChromaDB)"]
     E --> F["Stage 4.5: Score + Select"]
     F --> G["Stage 5: Route"]
     G --> H["Stage 5.5: Enforcement Gate"]
     H -->|blocked| ERR4["Enforcement Blocked"]
-    H -->|allowed| I["Stage 6: Execute"]
+    H -->|allowed| I["Stage 6: Execute on MCP Server"]
     I -->|fail| ERR5["Execution Failed"]
     I -->|ok| J["Stage 7: Learn + Governance"]
     J --> K["Stage 8: Normalize"]
-    K --> L["Response + Trace"]
+    K --> L["Response + DecisionTrace"]
+```
+
+## 5.2 Data Handoff Per Stage
+
+| Stage | Input | Processing | Output | Owner Plane |
+|-------|-------|-----------|--------|-------------|
+| 1 | Raw request | Schema validation | `MCPRequest` | Execution |
+| 2 | `MCPRequest` | ACL check | `policyResult` | Execution |
+| 3 | `MCPRequest` | Server capability match | `[]ServerCandidate` | Execution |
+| 4 | `MCPRequest` | ChromaDB query | `KnowledgeContext` | Execution |
+| 4.5 | `[]ServerCandidate` | Score + stability + select | `selected Server` | Intelligence |
+| 5 | `selected Server` | Route binding | `(server, operation)` | Execution |
+| 5.5 | `(server, operation)` | Enforcement rule check | `EnforcementResult` | Control |
+| 6 | `(server, operation, args)` | MCP call | `ExecutionResult` | Execution |
+| 7 | `ExecutionResult` | Weight update + audit | `void` | Intelligence + Observability |
+| 8 | `ExecutionResult` | Response format + trace | `MCPResponse` | Execution |
+
+---
+
+# Section 6: Data Flow Contracts
+
+## 6.1 DecisionContext Schema
+
+`DecisionContext` is the read-only state carrier flowing through all stages. It is never mutated after creation.
+
+```
+DecisionContext {
+  TraceID:      string           // unique per request
+  ActionType:   string           // "tool_call"
+  Operation:    string           // e.g. "list_files", "read_file"
+  Args:         map[string]any   // operation arguments
+  UserID:       string           // originating user
+  Timestamp:    time.Time        // request arrival
+}
+```
+
+**Invariant**: DecisionContext is created once in Stage 1 and remains immutable for the request lifetime.
+
+## 6.2 PolicyEvent Schema
+
+`PolicyEvent` is the telemetry primitive emitted by the Enforcement Gate after each check (Stage 5.5).
+
+```
+PolicyEvent {
+  TraceID:      string           // links to DecisionContext
+  Server:       string           // selected server name
+  Operation:    string           // operation attempted
+  Allowed:      bool             // true = execution allowed
+  Blocked:      bool             // true = execution blocked
+  RuleMatched:  string           // "allow-all", "deny-*", "audit-*"
+  Timestamp:    time.Time
+}
+```
+
+**Invariant**: PolicyEvent is append-only and write-once per enforcement check.
+
+## 6.3 EnforcementResult Schema
+
+`EnforcementResult` is the control authority output — the only component that can block execution.
+
+```
+EnforcementResult {
+  Allowed:       bool             // true  → proceed to execution
+                                  // false → return blocked response
+  RuleMatched:   string           // the policy rule that matched
+  BlockReason:   string           // populated only when Allowed == false
+}
+```
+
+**Invariant**: `EnforcementResult.Allowed == false` immediately terminates the pipeline to Stage 8 (error response). No intelligence layer may override this.
+
+## 6.4 TraceStep Schema
+
+Each `TraceStep` captures one stage's outcome for the DecisionTrace.
+
+```
+TraceStep {
+  Stage:         int              // 1–8 (plus 4.5, 5.5)
+  Component:     string           // e.g. "Validate", "EnforcementEngine"
+  Input:         string           // summary of input (PII-safe)
+  Output:        string           // summary of output
+  Duration:      time.Duration    // stage execution time
+  Error:         string           // empty if successful
+}
+```
+
+**Invariant**: TraceStep captures all outcomes, including errors and blocks. Trace population never affects routing or execution.
+
+## 6.5 Data Flow Constraints
+
+- **PolicyEvent** flows: EnforcementEngine → PolicyIntelligenceEngine (append-only)
+- **EnforcementResult** flows: EnforcementEngine → Gateway.Process() (authoritative)
+- **DecisionTrace** flows: Gateway.Process() → ResponseMeta (read-only attachment)
+- **KnowledgeContext** flows: ChromaDB → Gateway → Scoring (advisory only)
+- **Weight updates** flow: LearningEngine → persistent store (no live influence on current request)
+
+---
+
+# Section 7: System Boundaries
+
+## 7.1 Boundary Map
+
+| Scope | Components | Can Modify Enforcement? | Can Block Execution? |
+|-------|-----------|------------------------|---------------------|
+| **Inside Runtime** | Gateway, Engines, Adapters | No | Only EnforcementEngine |
+| **Plugin/Adapter** | MCP Tool Servers | No | No (responses are opaque) |
+| **External Storage** | ChromaDB | No | No (timeout → fallback) |
+| **External Client** | MCP Client | No | No (requests are validated) |
+
+## 7.2 Inside vs Outside
+
+```
+INSIDE MCP RUNTIME:
+├── Request Processor       (gateway.go)
+├── Router                  (gateway.go)
+├── Scoring Engine          (feedback.go)
+├── Stability Engine        (feedback.go)
+├── Learning Engine         (feedback.go)
+├── Enforcement Engine      (enforcement.go)       ← SOLE AUTHORITY
+├── Policy Intelligence     (policy_intelligence.go)
+├── Governance Audit        (governance.go)
+└── Decision Trace          (schema.go)
+
+OUTSIDE (registered):
+├── MCP Tool Servers
+│   ├── Git Server          (port 4110, stdio)
+│   ├── Filesystem Server   (port 4111, stdio)
+│   ├── Memory Server       (port 4112, stdio)
+│   ├── GitHub Server       (port 4115, HTTP)
+│   ├── Fetch Server        (port 4116, stdio)
+│   ├── Context7 Server     (port 4117, HTTP)
+│   ├── Supabase Server     (port 4118, HTTP)
+│   └── ChromaDB Server     (port 4114, HTTP)
+└── ChromaDB Cloud          (SaaS, HTTP)
+
+ALWAYS EXTERNAL:
+└── MCP Client              (public, untrusted)
+```
+
+## 7.3 Boundary Invariants
+
+- I1: No external component may write to Enforcement rule map
+- I2: No external component may read PolicyEvent stream (internal only)
+- I3: ChromaDB access is query-only (no write at runtime)
+- I4: MCP Client receives DecisionTrace but cannot modify it
+- I5: All inter-container communication is synchronous (call/return)
+
+---
+
+# Section 8: Cross-plane Interaction Rules
+
+## 8.1 Authority Model
+
+```
+Execution Plane:
+  → Can request scoring from Intelligence Plane
+  → Can request enforcement check from Control Plane
+  → Can write events to Observability Plane
+  → CANNOT override enforcement decision
+
+Intelligence Plane:
+  → Can influence server selection (via scores + stability)
+  → CANNOT block execution
+  → CANNOT modify enforcement rules
+
+Control Plane:
+  → Can block execution (sole authority)
+  → CANNOT influence scoring or routing
+
+Observability Plane:
+  → Can record everything
+  → CANNOT influence anything
+```
+
+## 8.2 System Invariants
+
+1. **Enforcement is sole control authority**: No other layer may block execution
+2. **Intelligence cannot influence decisions**: Scoring, stability, and learning do not affect enforcement outcomes
+3. **Execution is always deterministic**: Same input → same routing decision (modulo exploration)
+4. **System works without intelligence**: Scoring, stability, learning, and policy intelligence can all be removed; execution + enforcement + audit survive
+5. **Traceability is always on**: DecisionTrace is populated for every request, including errors and blocks
+6. **Policy Intelligence is passive**: No feedback loop into routing, scoring, or enforcement
+
+---
+
+# Section 9: Architecture vs Runtime Separation
+
+## 9.1 Documentation Contract
+
+| Layer | Files | Can Modify? | Purpose |
+|-------|-------|-------------|---------|
+| **Runtime System** | `runtime/` | NO | Live execution — frozen |
+| **System Design Spec** | `SYSTEM_DESIGN.md` | NO | Contract-level specification — frozen |
+| **Architecture Pack** | `architecture-pack/` | YES | Documentation layer — read-only knowledge |
+
+## 9.2 Governance Rules
+
+- NO file under `runtime/` is touched by the Architecture Pack
+- NO behavioral specification in Architecture Pack overrides runtime implementation
+- Architecture Pack is **read-only knowledge**, not executable configuration
+- All Mermaid diagrams are documentation-only — they are not code-generated
+
+## 9.3 Layer Separation
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              ARCHITECTURE PACK (static model)            │
+│  ┌──────────┐  ┌─────┐  ┌─────────────┐  ┌──────────┐  │
+│  │  C4 Spec │  │ ADR │  │ Benchmark   │  │  Threat  │  │
+│  │(diagrams)│  │(why)│  │(SLA bounds) │  │ (OWASP)  │  │
+│  └──────────┘  └─────┘  └─────────────┘  └──────────┘  │
+│                         │                               │
+│           describes     │     validates                 │
+│                         ▼                               │
+│              ┌─────────────────────┐                    │
+│              │   RUNTIME SYSTEM   │                    │
+│              │  (live execution)   │                    │
+│              └─────────────────────┘                    │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Plane Ownership Map
+# Appendix A: ADR-001 — Enforcement Gate Isolation
 
-| Plane | Components | Authority |
-|-------|-----------|-----------|
-| **Execution** | Gateway, MCP Adapters, Router | Deterministic execution |
-| **Intelligence** | Scoring, Stability, Learning, Exploration | Decision influence only |
-| **Control** | Enforcement Engine | Allow/Block authority |
-| **Observability** | Decision Trace, Governance Audit, Policy Intelligence | Recording only |
-
----
-
-# FILE: ADR-001-enforcement-gate-isolation.md
-
-> Lines 125–188 of 543
-
-# ADR-001: Enforcement Gate Isolation
-
-**Status:** Accepted (v3.0)  
-**Decided:** 2026-06-11  
-**Scope:** Control Plane
-
----
+**Status:** Accepted (v3.0) | **Scope:** Control Plane
 
 ## Context
 
@@ -240,17 +484,9 @@ Introduce a dedicated **Enforcement Gate** as Stage 5.5, positioned after routin
 
 ---
 
-# FILE: ADR-002-passive-policy-intelligence.md
+# Appendix B: ADR-002 — Passive Policy Intelligence
 
-> Lines 189–256 of 543
-
-# ADR-002: Passive Policy Intelligence
-
-**Status:** Accepted (v3.1)  
-**Decided:** 2026-06-11  
-**Scope:** Observability Plane
-
----
+**Status:** Accepted (v3.1) | **Scope:** Observability Plane
 
 ## Context
 
@@ -298,17 +534,9 @@ All data structures are **internal only** — no exposed API can trigger enforce
 
 ---
 
-# FILE: ADR-003-stability-engine-independence.md
+# Appendix C: ADR-003 — Stability Engine Independence
 
-> Lines 257–332 of 543
-
-# ADR-003: Stability Engine Independence
-
-**Status:** Accepted (v2.8)  
-**Decided:** 2026-06-11  
-**Scope:** Intelligence Plane
-
----
+**Status:** Accepted (v2.8) | **Scope:** Intelligence Plane
 
 ## Context
 
@@ -360,37 +588,26 @@ The final score becomes: `baseScore + explorationAdjustment - oscillationPenalty
 
 ---
 
-# FILE: BENCHMARK_SPEC.md
+# Appendix D: Benchmark Specification
 
-> Lines 333–419 of 543
+## D1. Latency Budgets (per-request, p99)
 
-# MCP Runtime — Benchmark Specification
-
-**Version:** v3.1.0-stable  
-**Status:** Reference Specification (not implemented)
-
----
-
-## 1. Latency Budgets (per-request, p99)
-
-| Stage | Budget | Measured (v3.1) | Notes |
-|-------|--------|-----------------|-------|
-| Stage 1: Validate | ≤ 50µs | — | Request parsing + schema check |
-| Stage 2: Policy | ≤ 50µs | — | ACL lookup (Stage 2, pre-v3.0) |
-| Stage 3: Resolve | ≤ 100µs | — | Server capability matching |
-| Stage 4: Knowledge | ≤ 500ms | — | ChromaDB query (network-bound) |
-| Stage 4.5: Score + Select | ≤ 200µs | — | Scoring + exploration + stability |
-| Stage 5: Route | ≤ 50µs | — | Candidate-to-server binding |
-| Stage 5.5: Enforcement | ≤ 50µs | — | Rule lookup + check |
-| Stage 6: Execute | ≤ 5s | — | MCP server execution (external) |
-| Stage 7: Learn + Governance | ≤ 100µs | — | Weight update + audit write |
-| Stage 8: Normalize | ≤ 50µs | — | Response formatting + trace attach |
+| Stage | Budget | Notes |
+|-------|--------|-------|
+| Stage 1: Validate | ≤ 50µs | Request parsing + schema check |
+| Stage 2: Policy | ≤ 50µs | ACL lookup (Stage 2, pre-v3.0) |
+| Stage 3: Resolve | ≤ 100µs | Server capability matching |
+| Stage 4: Knowledge | ≤ 500ms | ChromaDB query (network-bound) |
+| Stage 4.5: Score + Select | ≤ 200µs | Scoring + exploration + stability |
+| Stage 5: Route | ≤ 50µs | Candidate-to-server binding |
+| Stage 5.5: Enforcement | ≤ 50µs | Rule lookup + check |
+| Stage 6: Execute | ≤ 5s | MCP server execution (external) |
+| Stage 7: Learn + Governance | ≤ 100µs | Weight update + audit write |
+| Stage 8: Normalize | ≤ 50µs | Response formatting + trace attach |
 
 **Total system overhead (Stages 1–5 + 7–8, excluding execute):** ≤ 1ms p99
 
----
-
-## 2. Decision Throughput SLA
+## D2. Decision Throughput SLA
 
 | Metric | Target | Degradation Threshold | Critical |
 |--------|--------|----------------------|----------|
@@ -399,9 +616,7 @@ The final score becomes: `baseScore + explorationAdjustment - oscillationPenalty
 | Decision latency p50 | ≤ 500µs | > 1ms | > 5ms |
 | Decision latency p99 | ≤ 1ms | > 5ms | > 10ms |
 
----
-
-## 3. Stress Thresholds
+## D3. Stress Thresholds
 
 | Parameter | Value | Behaviour at Threshold |
 |-----------|-------|----------------------|
@@ -411,17 +626,13 @@ The final score becomes: `baseScore + explorationAdjustment - oscillationPenalty
 | Execution timeout | 30s | Stage 6 forced abort |
 | Concurrent ChromaDB queries | 10 | Round-robin throttling |
 
----
-
-## 4. Enforcement Under Load
+## D4. Enforcement Under Load
 
 - **Fail-close during uncertainty**: if enforcement check exceeds 100ms or returns ambiguous, treat as `Block`
 - **Policy Intelligence recording**: non-blocking, dropped if write queue exceeds 1000 events
 - **DecisionTrace size cap**: 128 steps per trace; overflow is truncated (oldest step dropped)
 
----
-
-## 5. Convergence Metrics
+## D5. Convergence Metrics
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
@@ -429,9 +640,7 @@ The final score becomes: `baseScore + explorationAdjustment - oscillationPenalty
 | Stability bias accumulation | 0.01 per request at convergence > 0.5 | `StabilityMetrics` snapshot |
 | Exploration floor | 1% of base rate | `EffectiveRate()` calculation |
 
----
-
-## 6. Test Requirements
+## D6. Test Requirements
 
 - **Functional**: 60 tests (v2–v3.1), all pass
 - **Stress minimum**: 1000 sequential valid requests with no enforcement blocks
@@ -440,19 +649,9 @@ The final score becomes: `baseScore + explorationAdjustment - oscillationPenalty
 
 ---
 
-# FILE: THREAT_MODEL.md
+# Appendix E: Threat Model
 
-> Lines 420–543 of 543
-
-# MCP Runtime — Threat Model
-
-**Version:** v3.1.0-stable  
-**Methodology:** OWASP Application Threat Modeling  
-**Scope:** MCP-specific attack surface
-
----
-
-## 1. Trust Boundaries
+## E1. Trust Boundaries
 
 ```
 [MCP Client] ──── [MCP Gateway] ──── [MCP Tool Servers]
@@ -465,125 +664,44 @@ The final score becomes: `baseScore + explorationAdjustment - oscillationPenalty
 | Gateway → MCP Servers | Medium-High | Servers are pre-registered; assumes non-malicious but may have bugs |
 | Gateway → ChromaDB | High | Service account with query-only scope |
 
----
+## E2. Threat Enumeration (OWASP TOP 10 Mapping)
 
-## 2. Threat Enumeration (OWASP TOP 10 Mapping)
+### T1: MCP Request Injection (A03:2021)
 
-### T1: MCP Request Injection (A03:2021 — Injection)
+**Mitigation:** Stage 1 Validate + Stage 3 Resolve + Stage 5.5 Enforcement
+**Residual risk:** Low
 
-**Description:** An attacker crafts a malformed MCP request that bypasses the schema validation (Stage 1) to execute an unregistered operation or reach an unintended server.
+### T2: Enforcement Bypass (A01:2021)
 
-**Mitigation:**
-- Stage 1 Validate rejects all requests with unknown `action_type` or `operation`
-- Stage 3 Resolve only returns servers registered in the capability map
-- Stage 5.5 Enforcement provides a final gate against `(server, operation)` pairs not explicitly allowed
+**Mitigation:** Network isolation + exact `(server, operation)` matching + fail-close
+**Residual risk:** Low
 
-**Residual risk:** Low — three independent barriers must be bypassed.
+### T3: Scoring Manipulation (A08:2021)
 
----
+**Mitigation:** Enforcement override + exploration decay + ChromaDB empty fallback
+**Residual risk:** Medium
 
-### T2: Enforcement Bypass (A01:2021 — Broken Access Control)
+### T4: Denial of Service via Excessive Execution (A04:2021)
 
-**Description:** An attacker exploits a race condition or logic gap to execute a blocked operation by bypassing Stage 5.5.
+**Mitigation:** None in v3.1 (known gap) — relies on external rate limiting
+**Residual risk:** High
 
-**Attack vectors:**
-- Direct access to MCP server port (bypassing Gateway entirely)
-- Exploitation of a routing bug that maps a blocked operation to an allowed `(server, operation)` pair
+### T5: Knowledge Base Poisoning (A08:2021)
 
-**Mitigation:**
-- MCP servers listen only on localhost or internal network
-- Enforcement rules match on exact `(server, operation)` pairs, not wildcards
-- Fail-close mode blocks when enforcement is uncertain
+**Mitigation:** Query-only ChromaDB account + enforcement override
+**Residual risk:** Low
 
-**Residual risk:** Low — requires network access to internal ports.
+### T6: Policy Intelligence Data Leakage (A05:2021)
 
----
+**Mitigation:** Intentional transparency — DecisionTrace is visible by design
+**Residual risk:** None by design
 
-### T3: Scoring Manipulation (A08:2021 — Software and Data Integrity Failures)
+### T7: Malicious MCP Server (A06:2021)
 
-**Description:** An attacker influences routing by polluting the knowledge base or feedback history to favour a compromised server.
+**Mitigation:** Opaque response handling + execution timeout
+**Residual risk:** Medium
 
-**Attack vectors:**
-- Repeated successful executions on a compromised server to inflate its weight
-- ChromaDB injection to return misleading context
-
-**Mitigation:**
-- Enforcement gate is independent of scoring — even if a compromised server is selected, enforcement can block it
-- Exploration decay limits how quickly a new server can gain influence
-- ChromaDB fallback returns empty `{}` to prevent self-bias
-
-**Residual risk:** Medium — feedback pollution is possible; enforcement is the compensating control.
-
----
-
-### T4: Denial of Service via Excessive Execution (A04:2021 — Uncontrolled Resource Consumption)
-
-**Description:** An attacker sends a high volume of requests to exhaust MCP server resources (e.g., excessive git status calls).
-
-**Attack vectors:**
-- Many concurrent requests for the same operation
-- Operations with slow execution paths (e.g., large file reads)
-
-**Mitigation:**
-- No built-in rate limiting in v3.1 — this is a known gap
-- Execution timeout (30s) per operation
-- Backpressure at 200 in-flight requests
-
-**Residual risk:** High — rate limiting is absent; relies on external protection (API gateway, reverse proxy).
-
----
-
-### T5: Knowledge Base Poisoning (A08:2021 — Software and Data Integrity Failures)
-
-**Description:** An attacker inserts malicious context into the ChromaDB knowledge base, causing the system to select a dangerous server for a given operation.
-
-**Attack vectors:**
-- Direct ChromaDB write access (requires API key)
-- Exploitation of a ChromaDB vulnerability
-
-**Mitigation:**
-- ChromaDB is accessed with a query-only account
-- Knowledge base is read-only at runtime
-- Knowledge scores are advisory only — enforcement is the final gate
-
-**Residual risk:** Low — assumes proper ChromaDB credential management.
-
----
-
-### T6: Policy Intelligence Data Leakage (A05:2021 — Security Misconfiguration)
-
-**Description:** The `PolicyEvent` stream reveals internal enforcement patterns (which operations are blocked, which servers are mistrusted) to an external observer.
-
-**Attack vectors:**
-- Governance audit logs exposed via unprotected endpoint
-- DecisionTrace attached to every response reveals available servers and enforcement outcomes
-
-**Mitigation:**
-- `DecisionTrace` is included in response metadata by default — servers and enforcement outcomes are visible to the client
-- This is a design choice for transparency, not a leak
-
-**Residual risk:** None by design — trace visibility is intentional.
-
----
-
-### T7: Malicious MCP Server (A06:2021 — Vulnerable and Outdated Components)
-
-**Description:** A compromised or malicious MCP server returns arbitrary responses that trigger unintended behaviour in downstream systems.
-
-**Attack vectors:**
-- Server returns malicious filesystem paths, URLs, or SQL queries
-- Server responds with malformed data that crashes the Gateway
-
-**Mitigation:**
-- Gateway treats server responses as opaque data — no deserialisation into sensitive structures
-- Execution timeout prevents indefinite hangs
-- No server-initiated communication — all requests are Gateway → Server
-
-**Residual risk:** Medium — depends on how the client processes execution results.
-
----
-
-## 3. Risk Summary
+## E3. Risk Summary
 
 | ID | Threat | Likelihood | Impact | Risk | Mitigated By |
 |----|--------|-----------|--------|------|-------------|
@@ -595,9 +713,7 @@ The final score becomes: `baseScore + explorationAdjustment - oscillationPenalty
 | T6 | Data leakage | Low | Low | Low | Intentional transparency |
 | T7 | Malicious server | Medium | High | Medium | Opaque response handling |
 
----
-
-## 4. Recommended Hardening (Post-Freeze)
+## E4. Recommended Hardening (Post-Freeze)
 
 1. **Rate limiting layer** — per-client, per-operation token bucket before Stage 1
 2. **Policy rule versioning** — add timestamps to `PolicyRule` for audit trail lineage
