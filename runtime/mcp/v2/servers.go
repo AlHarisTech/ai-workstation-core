@@ -891,7 +891,7 @@ func (c *ChromaAdapter) Execute(action string, payload map[string]any, ctx MCPCo
 		if query == "" {
 			return nil, fmt.Errorf("query is required")
 		}
-		return c.queryDocs(collection, query)
+		return c.QueryKnowledge(collection, query)
 
 	case "delete":
 		docID, _ := payload["id"].(string)
@@ -947,12 +947,7 @@ func (c *ChromaAdapter) storeDoc(collection, docID, docText string, ctx MCPConte
 
 func (c *ChromaAdapter) queryDocs(collection, query string) (any, error) {
 	if c.apiKey == "" || c.tenant == "" || c.database == "" {
-		return map[string]any{
-			"query":  query,
-			"status": "simulated",
-			"notice": "no chroma cloud connection configured — returning empty results",
-			"results": []any{},
-		}, nil
+		return map[string]any{}, nil
 	}
 	col := collection
 	if col == "" {
@@ -973,6 +968,10 @@ func (c *ChromaAdapter) queryDocs(collection, query string) (any, error) {
 	var result any
 	json.Unmarshal(respBody, &result)
 	return map[string]any{"query": query, "results": result}, nil
+}
+
+func (c *ChromaAdapter) QueryKnowledge(collection, query string) (any, error) {
+	return c.queryDocs(collection, query)
 }
 
 func (c *ChromaAdapter) deleteDoc(collection, docID string) (any, error) {

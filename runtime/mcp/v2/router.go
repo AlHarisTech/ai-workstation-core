@@ -29,6 +29,14 @@ func (r *Router) registerDefaults() {
 	r.registry[ActionChromaDB] = &Capability{Server: "chroma", Capabilities: []string{"store", "query", "delete", "list_collections"}, Version: "1.0"}
 }
 
+func (r *Router) ListAll() []*Capability {
+	caps := make([]*Capability, 0, len(r.registry))
+	for _, cap := range r.registry {
+		caps = append(caps, cap)
+	}
+	return caps
+}
+
 func (r *Router) Resolve(actionType ActionType, operation string) (*Capability, error) {
 	cap, ok := r.registry[actionType]
 	if !ok {

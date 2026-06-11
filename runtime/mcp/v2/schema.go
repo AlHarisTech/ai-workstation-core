@@ -19,11 +19,19 @@ type MCPAction struct {
 	Version   string     `json:"version"`
 }
 
+type KnowledgeDoc struct {
+	Collection string `json:"collection"`
+	Query      string `json:"query"`
+	Results    any    `json:"results"`
+	DurationMs int64  `json:"duration_ms"`
+}
+
 type MCPContext struct {
-	TenantID  string `json:"tenant_id"`
-	SessionID string `json:"session_id"`
-	TraceID   string `json:"trace_id"`
-	TimeoutMs int    `json:"timeout_ms"`
+	TenantID   string          `json:"tenant_id"`
+	SessionID  string          `json:"session_id"`
+	TraceID    string          `json:"trace_id"`
+	TimeoutMs  int             `json:"timeout_ms"`
+	Knowledge  []KnowledgeDoc  `json:"knowledge,omitempty"`
 	Workspace struct {
 		Path string `json:"path"`
 		Repo string `json:"repo"`
@@ -82,10 +90,29 @@ type ErrorInfo struct {
 }
 
 type ResponseMeta struct {
-	Cached  bool   `json:"cached"`
-	Retried int    `json:"retried"`
-	TraceID string `json:"trace_id"`
-	SpanID  string `json:"span_id"`
+	Cached        bool            `json:"cached"`
+	Retried       int             `json:"retried"`
+	TraceID       string          `json:"trace_id"`
+	SpanID        string          `json:"span_id"`
+	DecisionTrace *DecisionTrace  `json:"decision_trace,omitempty"`
+}
+
+type TraceStep struct {
+	Stage  string         `json:"stage"`
+	Input  string         `json:"input,omitempty"`
+	Output string         `json:"output,omitempty"`
+	Meta   map[string]any `json:"meta,omitempty"`
+}
+
+type DecisionTrace struct {
+	TraceID        string                `json:"trace_id"`
+	RequestID      string                `json:"request_id"`
+	ServerScores   map[string]float64    `json:"server_scores,omitempty"`
+	SelectedServer string                `json:"selected_server"`
+	SecondBest     string                `json:"second_best,omitempty"`
+	ScoreDelta     float64               `json:"score_delta,omitempty"`
+	KnowledgeUsed  []string              `json:"knowledge_used,omitempty"`
+	Steps          []TraceStep           `json:"steps"`
 }
 
 type MCPResponse struct {
