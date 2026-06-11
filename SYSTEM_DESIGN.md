@@ -313,32 +313,92 @@ Each stage appends TraceStep → DecisionTrace attached to ResponseMeta
 
 ---
 
-## 10. Testing Strategy
+## 10. Runtime Data Contracts
 
-### 10.1 Functional Tests
+All inter-layer communication must follow strict immutable contracts.
+
+### 10.1 Core Event Model
+
+- **PolicyEvent** (immutable) — recorded by Policy Intelligence, never mutated
+- **DecisionContext** (read-only) — passed downstream, never modified by consumers
+- **EnforcementResult** (final authority output) — terminal, cannot be overridden
+
+### 10.2 Contract Rules
+
+- No layer may mutate upstream data
+- All events must be append-only
+- All decisions must be traceable via TraceID
+- Each event carries full provenance (stage, timestamp, trace_id)
+
+---
+
+## 11. Failure Handling Model
+
+### 11.1 Enforcement Failure
+- **Default:** FAIL-CLOSE (block execution)
+- Must NOT bypass execution silently
+- Any uncertainty in enforcement state results in blocked execution
+
+### 11.2 Policy Intelligence Failure
+- System continues normally (observer is non-critical)
+- No impact on routing, execution, or enforcement
+
+### 11.3 Learning Engine Failure
+- System continues with static weights
+- No crash or routing degradation
+
+### 11.4 Stability Engine Failure
+- System continues without oscillation detection
+- Exploration decays naturally via usage count
+
+### 11.5 Critical Principle
+
+> Execution must always be prioritized over intelligence layers.
+>
+> No observability or intelligence failure may block execution.
+
+---
+
+## 12. System Invariants
+
+The following properties must always hold:
+
+1. **Enforcement is the only control authority** — no other layer may block execution
+2. **Policy Intelligence never influences decisions** — purely observational
+3. **Execution path must remain deterministic** — same input → same routing decision
+4. **All decisions must produce a traceable event** — full audit trail required
+5. **No layer is allowed to mutate another layer's output** — strict immutability between planes
+6. **System must function even if all intelligence layers fail** — execution core is self-sufficient
+7. **Observability must never add latency to the execution path** — non-blocking only
+
+---
+
+## 13. Testing Strategy
+
+### 13.1 Functional Tests
 - Gateway routing correctness
 - MCP adapter behavior
 - Enforcement accuracy
 
-### 10.2 Stress Tests
+### 13.2 Stress Tests
 - High concurrency execution
 - Burst event policy recording
 - Memory stability under load
 
-### 10.3 Regression Tests
+### 13.3 Regression Tests
 - Zero change in routing behavior
 - Zero change in enforcement output
 
-### 10.4 Observability Tests
+### 13.4 Observability Tests
 - Policy event completeness
 - Drift detection accuracy
 - Suggestion consistency
 
 ---
 
-## 11. Extended System Pillars
+## 14. Extended System Pillars
 
-### 11.1 Observability & Policy Intelligence (Priority 1)
+### 14.1 Observability & Policy Intelligence (Priority 1)
 - Event recording system
 - Drift detection
 - Suggestion engine
@@ -346,7 +406,7 @@ Each stage appends TraceStep → DecisionTrace attached to ResponseMeta
 
 ---
 
-### 11.2 Benchmark & Performance Layer (Priority 2)
+### 14.2 Benchmark & Performance Layer (Priority 2)
 - Load testing engine
 - Latency profiling
 - Decision throughput metrics
@@ -354,7 +414,7 @@ Each stage appends TraceStep → DecisionTrace attached to ResponseMeta
 
 ---
 
-### 11.3 Security & Threat Model (Priority 3)
+### 14.3 Security & Threat Model (Priority 3)
 - MCP abuse detection
 - Injection protection
 - Server trust scoring
@@ -362,7 +422,7 @@ Each stage appends TraceStep → DecisionTrace attached to ResponseMeta
 
 ---
 
-### 11.4 Architecture Specification Layer (Priority 4)
+### 14.4 Architecture Specification Layer (Priority 4)
 - System contracts definition
 - Component interaction diagrams
 - API boundaries
@@ -370,20 +430,20 @@ Each stage appends TraceStep → DecisionTrace attached to ResponseMeta
 
 ---
 
-## 12. Deployment Model
+## 15. Deployment Model
 
-### 12.1 Release Type
+### 15.1 Release Type
 Hardened stable runtime release.
 
-### 12.2 Versioning
+### 15.2 Versioning
 `v3.1.0-stable`
 
-### 12.3 Deployment Principle
+### 15.3 Deployment Principle
 Zero architectural expansion during stabilization phase.
 
 ---
 
-## 13. Evolution Model
+## 16. Evolution Model
 
 **Current Phase:** Stabilization / Hardening Phase
 
@@ -395,7 +455,7 @@ Allowed Future Phases (not active):
 
 ---
 
-## 14. Summary
+## 17. Summary
 
 MCP Runtime v3.1 represents:
 
