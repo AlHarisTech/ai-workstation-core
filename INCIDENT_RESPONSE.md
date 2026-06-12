@@ -6,12 +6,20 @@
 
 | Source | What to Watch | Threshold | Action |
 |--------|--------------|-----------|--------|
-| Metrics | `Panics > 0` | Any non-zero | Investigate panic source (logs, trace) |
+| Metrics | `Panics` counter | See Panic Alert Thresholds below | Investigate panic source (logs, trace) |
 | Metrics | `ErrorRate > 5%` | > 5% over 5 min | Check MCP health, recent changes |
 | Metrics | `RateLimited / Total > 1%` | > 1% | Rate limiter too aggressive or attack in progress |
 | Systemd | Service `failed` or `inactive` | Any | Auto-restart already triggered; check if persistent |
 | Systemd | Cascade stop (`BindsTo` chain) | > 1 service down | Root service failure cascaded; fix root first |
 | Port check | `localhost:411{0,1,2,3}` unreachable | Any | MCP service down or network issue |
+
+### Panic Alert Thresholds
+
+| Count | Severity | Action |
+|-------|----------|--------|
+| `Panics > 0` | Alert | Investigate panic source (logs, trace) |
+| `Panics > 3 / hour` | P2 | Root cause analysis, rollback if code change |
+| `Panics > 10 / hour` | P1 | Immediate containment, engage engineering |
 
 ### Metric
 
@@ -19,9 +27,7 @@
 snap := metrics.Global().Snapshot()
 
 // Immediate red flags
-if snap.Gateway.Panics > 0 {
-    // P2 incident (P1 if > 10 in 1 hour)
-}
+// See Panic Alert Thresholds table for panic escalation
 if float64(snap.Gateway.RequestsFailed)/float64(snap.Gateway.RequestsTotal) > 0.05 {
     // P2 incident — error rate exceeds SLO
 }
@@ -70,7 +76,7 @@ System is unavailable or has active data loss/security risk.
 | All local MCPs down (cascade failure) | Check cascade root (filesystem), restore from there |
 | Security breach detected | Immediately block all routes, engage security team |
 | Data loss or corruption | Stop affected services, restore from backup |
-| Active DoS attack | Reduce rate limiter burst, consider blocking source IPs |
+| Sustained abnormal traffic causing rate-limit saturation | Reduce rate limiter burst temporarily, monitor traffic pattern |
 
 **Response time:** Immediate. All available operators.
 
@@ -133,9 +139,11 @@ systemctl --user status mcp-git.service mcp-fetch.service mcp-memory.service
 
 # Prevent auto-restart during investigation
 systemctl --user mask mcp-filesystem.service
+# ⚠ Warning: `mask` persists after reboot. Must explicitly `unmask` to re-enable.
+# Use `stop` instead of `mask` if you only need temporary containment.
 ```
 
-**Re-enable when resolved:**
+**Re-enable when resolved (only needed if `mask` was used):**
 
 ```bash
 systemctl --user unmask mcp-filesystem.service
@@ -143,33 +151,42 @@ systemctl --user restart mcp-filesystem.service
 systemctl --user status mcp-git.service mcp-fetch.service mcp-memory.service
 ```
 
+**If `stop` was used instead of `mask`:** simply `systemctl --user start mcp-filesystem.service` to re-enable.
+
 ### Block Route
 
-Block a specific operation or server via enforcement without stopping the service:
+Block a specific operation or server during an incident using available operator controls:
 
-```go
-// Runtime enforcement block — no restart required
-gw.enforcement.AddRule("filesystem", "filesystem.read", EnforcementRule{Allowed: false, Reason: "incident containment"})
+**Option 1 — Stop the service (fastest containment):**
 
-// To remove the block:
-gw.enforcement.RemoveRule("filesystem", "filesystem.read")
+```bash
+systemctl --user stop mcp-filesystem.service
+# All operations to this server will return EXECUTION_FAILED
+# Dependent services stop via BindsTo cascade
 ```
 
-For Policy Intelligence observer violations:
+**Option 2 — Remove the route from OpenCode config (persistent block):**
+
+```bash
+# 1. Edit the OpenCode config
+# Remove the server entry from ~/.config/opencode/opencode.jsonc
+
+# 2. Reload opencode
+opencode mcp list  # Verify the server no longer appears
+```
+
+**Option 3 — Add enforcement rule at code level (requires restart):**
 
 ```go
-// Policy Intelligence can suggest blocks but does not enforce them
-// Actual enforcement must be set via EnforcementEngine
-if g.policyIntelligence != nil {
-    g.policyIntelligence.Record(PolicyEvent{
-        Server:    "filesystem",
-        Operation: "filesystem.read",
-        Allowed:   false,
-        Blocked:   true,
-        Reason:    "incident containment — operator override",
-    })
-}
+// Edit runtime/mcp/v2/gateway.go and add:
+g.enforcement.AddRule("filesystem", "filesystem.read",
+    EnforcementRule{Allowed: false, Reason: "incident containment"})
+
+// Rebuild and restart the service
+go build ./runtime/mcp/v2/cmd/ && systemctl --user restart mcp-filesystem.service
 ```
+
+To re-enable: reverse the action taken (start service, restore config, remove rule and restart).
 
 ### Fallback
 
@@ -231,11 +248,11 @@ if resp.Status != "success" {
 # 2. Verify service health
 systemctl --user is-active mcp-filesystem.service
 
-# 3. Verify all 8 MCPs connected
-opencode mcp list | wc -l  # Should be 8
+# 3. Verify all 8 MCPs connected (4 local + 4 remote)
+opencode mcp list  # Expect: filesystem, git, fetch, memory, supabase, chromadb, github, context7
 
-# 4. Verify metrics
-go run -e "metrics.Global().Snapshot().Gateway.ErrorRate"  # Should be < 5%
+# 4. Verify error rate — count recent errors from audit logs
+journalctl --user -u mcp-filesystem.service --since "10 min ago" --no-pager | grep -c '"status":"error"' | xargs echo "Errors in last 10 min:"
 ```
 
 ### Document
