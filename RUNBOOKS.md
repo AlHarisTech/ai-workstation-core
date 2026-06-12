@@ -45,7 +45,8 @@ These invariants must never be violated. Any observed deviation is a P1 incident
 | Gateway Error Rate | < 5% | `snap.Gateway.RequestsFailed / snap.Gateway.RequestsTotal` |
 | Recovered Panics | 0 expected | `snap.Gateway.Panics` — non-zero requires investigation |
 | Rate Limited Requests | < 1% | `snap.Gateway.RateLimited / snap.Gateway.RequestsTotal` |
-| MCP Health | 100% | All 4 local systemd services active |
+| Local MCP Health | 100% | All 4 local systemd services active (ports 4110–4113) |
+| Remote MCP Reachability | No SLO (third-party dependency) | GitHub, Context7, ChromaDB, Supabase are external services |
 | Decision Trace Coverage | 100% | Every response includes non-nil DecisionTrace |
 
 ## Runtime Operations
@@ -63,7 +64,17 @@ systemctl --user start mcp-memory.service
 systemctl --user status mcp-*.service
 ```
 
-Services start in cascade: `mcp-filesystem` → `mcp-git` (Wants mcp-fetch) → `mcp-fetch` (Wants mcp-memory).
+Services form a **BindsTo cascade** — each service stops if its dependency fails:
+
+```
+mcp-filesystem  (root — no MCP dependencies)
+    ↓ BindsTo
+mcp-git  (also Wants=mcp-fetch)
+    ↓ BindsTo
+mcp-fetch  (also Wants=mcp-memory)
+    ↓ BindsTo
+mcp-memory  (leaf)
+```
 
 If linger is enabled (`loginctl enable-linger asem`), services start automatically at boot.
 
@@ -122,13 +133,10 @@ Expected output from `opencode mcp list`:
 ### Runtime Health Checklist
 
 ```markdown
-[ ] Gateway running (systemctl --user is-active mcp-git.service)
+[ ] All 4 local MCP services active (systemctl --user is-active mcp-filesystem.service mcp-git.service mcp-fetch.service mcp-memory.service)
+[ ] All 4 local ports respond (curl http://localhost:411{0,1,2,3}/health)
 [ ] Metrics available (metrics.Global().Snapshot() returns data)
 [ ] Dashboard responding (NewCLIDashboard(nil).Render())
-[ ] Filesystem MCP healthy (curl http://localhost:4110/health)
-[ ] Git MCP healthy (curl http://localhost:4111/health)
-[ ] Fetch MCP healthy (curl http://localhost:4112/health)
-[ ] Memory MCP healthy (curl http://localhost:4113/health)
 [ ] Error rate < 5% (snap.Gateway.RequestsFailed / RequestsTotal)
 [ ] Panic count stable (snap.Gateway.Panics — no unexpected increase)
 [ ] Rate limit not saturated (RateLimited << RequestsTotal)
@@ -205,28 +213,49 @@ systemctl --user enable --now mcp-<name>.service
 
 ### Remove MCP
 
+Removal depends on how the MCP was added:
+
+**For systemd-managed MCPs (filesystem, git, fetch, memory):**
+
 ```bash
-# Disable and remove systemd unit
+# Stop and disable the systemd unit
 systemctl --user disable --now mcp-<name>.service
 rm ~/.config/systemd/user/mcp-<name>.service
 systemctl --user daemon-reload
+```
 
-# Remove from opencode config
-# Edit ~/.config/opencode/opencode.jsonc and delete the entry
+**For OpenCode-configured MCPs (supabase, chromadb, github, context7):**
+
+```jsonc
+// Edit ~/.config/opencode/opencode.jsonc and remove the server entry
+{
+  "mcpServers": {
+    // "<name>": { ... }  ← delete this block
+  }
+}
+```
+
+**For runtime-registered MCPs (code level):**
+
+```go
+// runtime/mcp/v2/gateway.go
+// Either delete the server from registerDefaults()
+// Or remove the g.servers["<name>"] = ... line
 ```
 
 ### Validate MCP
 
 ```go
-// Test a server responds correctly via Process()
+// Validate filesystem MCP reads a file correctly
 req := &MCPRequest{
-    Action: ActionType{Type: "<type>", Operation: "<op>"},
-    Payload: Payload{Parameters: map[string]any{}},
-    Policy: MCPPolicy{Allow: []string{"<type>.*"}},
+    Action: ActionType{Type: "filesystem", Operation: "read"},
+    Payload: Payload{Parameters: map[string]any{"path": "/tmp/test.txt"}},
+    Policy: MCPPolicy{Allow: []string{"filesystem.*"}, Deny: []string{}},
 }
 resp := gw.Process(req)
-// resp.Status should be "success" or "error" (never nil)
-// resp.Error.Code reveals the failure reason
+// Expected: Status="success" with file content in resp.Result.Data
+// If filesystem is down: Error.Code="EXECUTION_FAILED"
+// If path is invalid: Error.Code="VALIDATION_ERROR"
 ```
 
 Expected error codes from a healthy server:
