@@ -1,5 +1,53 @@
 # Runbooks — MCP Runtime v3.1.1-stable
 
+## Architecture Reference
+
+**Version:** v3.1.1-stable
+
+**Pipeline (11 stages, executed in order per request):**
+
+| Stage | Component | Role |
+|-------|-----------|------|
+| 0 | Rate Limiter | Token bucket burst control |
+| 1 | Validation | Request schema validation |
+| 2 | Policy Engine | Action-level authorization |
+| 3 | Router | Capability → server resolution |
+| 4 | Knowledge Retrieval | ChromaDB context queries (non-blocking, additive) |
+| 4.5 | Adaptive Override | Knowledge-driven server re-selection |
+| 5 | Routing | MCP server dispatch |
+| 5.5 | Enforcement | Control plane authorization gate |
+| 6 | Execution | MCP server operation |
+| 7 | Learning | Feedback + stability update + audit |
+| 8 | Normalize | Response formatting |
+
+**Core security principle:** Stages 2 (Policy) and 5.5 (Enforcement) enforce governance. Stage 4.5 (Adaptive Override) can influence server selection but **cannot bypass governance** — routing override occurs before enforcement.
+
+## Operational Invariants
+
+These invariants must never be violated. Any observed deviation is a P1 incident.
+
+| ID | Invariant | Enforced By |
+|----|-----------|-------------|
+| I1 | Policy cannot be bypassed | Stage 2 Policy Engine — blocks before routing reaches server |
+| I2 | Enforcement has final authority | Stage 5.5 — blocks after routing, regardless of override |
+| I3 | Panics must be recovered | `recover()` in Process() + TimeoutAdapter goroutine |
+| I4 | DecisionTrace must be attached | Deferred `resp.Meta.DecisionTrace = trace` at end of Process() |
+| I5 | Adaptive Routing cannot bypass governance | Override (Stage 4.5) precedes enforcement (Stage 5.5) |
+| I6 | Requests may fail closed | Every error path sets `Status: "error"` with explicit error code |
+| I7 | Rate limiting occurs before validation | Stage 0 precedes Stage 1 in Process() |
+| I8 | MCP failures must be isolated | Independent server instances, per-MCP systemd units |
+
+## Operational Targets (SLO Baseline)
+
+| Metric | Target | How to Measure |
+|--------|--------|----------------|
+| Availability | 99.9% | Gateway Process() returns non-nil response |
+| Gateway Error Rate | < 5% | `snap.Gateway.RequestsFailed / snap.Gateway.RequestsTotal` |
+| Recovered Panics | 0 expected | `snap.Gateway.Panics` — non-zero requires investigation |
+| Rate Limited Requests | < 1% | `snap.Gateway.RateLimited / snap.Gateway.RequestsTotal` |
+| MCP Health | 100% | All 4 local systemd services active |
+| Decision Trace Coverage | 100% | Every response includes non-nil DecisionTrace |
+
 ## Runtime Operations
 
 ### Start Runtime
@@ -70,6 +118,36 @@ Expected output from `opencode mcp list`:
 - `chromadb` (cloud/remote)
 - `github` (cloud/remote)
 - `context7` (cloud/remote)
+
+### Runtime Health Checklist
+
+```markdown
+[ ] Gateway running (systemctl --user is-active mcp-git.service)
+[ ] Metrics available (metrics.Global().Snapshot() returns data)
+[ ] Dashboard responding (NewCLIDashboard(nil).Render())
+[ ] Filesystem MCP healthy (curl http://localhost:4110/health)
+[ ] Git MCP healthy (curl http://localhost:4111/health)
+[ ] Fetch MCP healthy (curl http://localhost:4112/health)
+[ ] Memory MCP healthy (curl http://localhost:4113/health)
+[ ] Error rate < 5% (snap.Gateway.RequestsFailed / RequestsTotal)
+[ ] Panic count stable (snap.Gateway.Panics — no unexpected increase)
+[ ] Rate limit not saturated (RateLimited << RequestsTotal)
+```
+
+---
+
+## MCP Inventory
+
+| MCP | Type | Port | Criticality | Failure Impact |
+|-----|------|------|-------------|----------------|
+| Filesystem | Local (systemd) | 4110 | Critical | File operations unavailable |
+| Git | Local (systemd) | 4111 | Critical | Version control operations unavailable |
+| Fetch | Local (systemd) | 4112 | Critical | HTTP fetch operations unavailable |
+| Memory | Local (systemd) | 4113 | Critical | Knowledge storage unavailable |
+| GitHub | Remote | — | High | GitHub API operations degraded |
+| Context7 | Remote | — | High | Context retrieval unavailable |
+| ChromaDB | Remote | — | Medium | Knowledge retrieval degraded (non-blocking) |
+| Supabase | Remote | — | Medium | Database operations degraded |
 
 ---
 
@@ -405,3 +483,16 @@ No user impact, but worth noting.
 | Rate limit almost reached (>80% burst) | Consider scaling or increasing limits |
 | Learning engine weight shift | Review recent success/failure patterns |
 | Policy intelligence drift detection | Review recorded events for policy gaps |
+
+---
+
+## Known Limitations
+
+| Limitation | Impact | Workaround |
+|------------|--------|------------|
+| GitHub authenticated operations require `GITHUB_TOKEN` | GitHub MCP cannot perform authenticated operations | Set `GITHUB_TOKEN` environment variable before starting service |
+| Adaptive routing depends on knowledge scoring quality | Routing may be suboptimal with sparse knowledge | Ensure ChromaDB collection is populated with relevant context |
+| Remote MCP availability depends on external providers | GitHub, Context7, ChromaDB, Supabase may be unreachable | Built-in fail-close: requests return error codes; no cascade |
+| Rate limiting is process-local, not distributed | Multiple gateway instances have independent rate limiters | Coordinate burst/refill values across instances manually |
+| No user auth / identity layer | All requests treated as single operator | By design — single-operator runtime; not a security gap |
+| No persistent audit log storage | Audit records lost on process restart | Pipe `LogAudit()` output to file or external log sink |
