@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/AlHarisTech/ai-workstation-core/runtime/mcp/types"
@@ -100,6 +101,14 @@ func (ta *TimeoutAdapter) Execute(ctx context.Context, req types.MCPRequest) (ty
 	}
 	ch := make(chan result, 1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ch <- result{
+					resp: types.MCPResponse{ID: req.ID, Success: false, Error: fmt.Sprintf("panic in %s: %v", ta.inner.Name(), r)},
+					err:  fmt.Errorf("panic in %s: %v", ta.inner.Name(), r),
+				}
+			}
+		}()
 		r, e := ta.inner.Execute(ctx, req)
 		ch <- result{r, e}
 	}()

@@ -6,10 +6,48 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/AlHarisTech/ai-workstation-core/runtime/metrics"
 )
+
+type TokenBucket struct {
+	mu         sync.Mutex
+	tokens     float64
+	maxTokens  float64
+	refillRate float64
+	lastRefill time.Time
+}
+
+func NewTokenBucket(maxTokens, refillRate float64) *TokenBucket {
+	return &TokenBucket{
+		tokens:     maxTokens,
+		maxTokens:  maxTokens,
+		refillRate: refillRate,
+		lastRefill: time.Now(),
+	}
+}
+
+func (tb *TokenBucket) TryTake() bool {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	now := time.Now()
+	elapsed := now.Sub(tb.lastRefill).Seconds()
+	tb.tokens += elapsed * tb.refillRate
+	if tb.tokens > tb.maxTokens {
+		tb.tokens = tb.maxTokens
+	}
+	tb.lastRefill = now
+	if tb.tokens >= 1 {
+		tb.tokens--
+		return true
+	}
+	return false
+}
 
 type Gateway struct {
 	router              *Router
@@ -20,6 +58,7 @@ type Gateway struct {
 	stability           *StabilityEngine
 	enforcement         *EnforcementEngine
 	policyIntelligence  *PolicyIntelligenceEngine
+	rateLimiter         *TokenBucket
 }
 
 func NewGateway() *Gateway {
@@ -32,6 +71,7 @@ func NewGateway() *Gateway {
 		stability:           NewStabilityEngine(0.02, 20),
 		enforcement:         NewEnforcementEngine(),
 		policyIntelligence:  NewPolicyIntelligenceEngine(),
+		rateLimiter:         NewTokenBucket(10000, 5000),
 	}
 	g.registerDefaults()
 	return g
@@ -60,7 +100,7 @@ func (g *Gateway) RegisterServer(s MCPServer) {
 	g.servers[s.Name()] = s
 }
 
-func (g *Gateway) Process(req *MCPRequest) *MCPResponse {
+func (g *Gateway) Process(req *MCPRequest) (resp *MCPResponse) {
 	start := time.Now()
 	// Ensure trace IDs are available before any processing
 	if req.Meta.TraceID == "" {
@@ -70,7 +110,7 @@ func (g *Gateway) Process(req *MCPRequest) *MCPResponse {
 		req.Meta.SpanID = GenerateSpanID()
 	}
 
-	resp := &MCPResponse{
+	resp = &MCPResponse{
 		ID:        req.ID,
 		RequestID: req.ID,
 		Status:    "success",
@@ -96,6 +136,16 @@ func (g *Gateway) Process(req *MCPRequest) *MCPResponse {
 	var auditExecutionAllowed = true
 	var auditBlockReason string
 	defer func() {
+		if r := recover(); r != nil {
+			resp.Status = "error"
+			resp.Error = ErrorInfo{Code: "INTERNAL_PANIC", Message: fmt.Sprintf("panic: %v", r), Recoverable: false}
+			trace.Steps = append(trace.Steps, TraceStep{Stage: "panic", Output: "recovered", Meta: map[string]any{"panic": fmt.Sprintf("%v", r)}})
+			metrics.Global().RecordPanic()
+			stack := make([]byte, 4096)
+			n := runtime.Stack(stack, false)
+			log.Printf("[gateway] PANIC RECOVERED: %v\n%s", r, stack[:n])
+		}
+
 		if auditServer != "" {
 			if g.learningEngine != nil {
 				g.learningEngine.Update(RoutingOutcome{
@@ -127,6 +177,14 @@ func (g *Gateway) Process(req *MCPRequest) *MCPResponse {
 		// Attach trace only at the end — zero impact on routing
 		resp.Meta.DecisionTrace = trace
 	}()
+
+	// Stage 0: Rate Limiter (token bucket burst control)
+	if !g.rateLimiter.TryTake() {
+		metrics.Global().RecordRateLimit()
+		trace.Steps = append(trace.Steps, TraceStep{Stage: "rate_limit", Output: "blocked"})
+		return errorResponse(resp, "RATE_LIMITED", "rate limit exceeded", false)
+	}
+	trace.Steps = append(trace.Steps, TraceStep{Stage: "rate_limit", Output: "allowed"})
 
 	// Stage 1: Validate request schema
 	if err := ValidateRequest(req); err != nil {
@@ -416,7 +474,8 @@ func (g *Gateway) Listen() *MCPRequest {
 		return nil
 	}
 	if err != nil {
-		log.Fatalf("[GATEWAY] failed to read request: %v", err)
+		log.Printf("[gateway] failed to read request (returning nil): %v", err)
+		return nil
 	}
 	return &req
 }
