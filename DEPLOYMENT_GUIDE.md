@@ -25,7 +25,7 @@
 
 ### Network
 
-- Local ports 4110–4115 must be available (systemd: MCPs 4110–4113, ChromaDB 4114, GitHub 4115)
+- Local ports 4110–4113 required (core MCPs); ports 4114–4115 required only if ChromaDB/GitHub are deployed
 - Outbound HTTPS to: `api.github.com`, `api.context7.com`, `api.trychroma.com`, Supabase endpoint
 - No inbound ports required (all MCPs are local HTTP servers)
 
@@ -50,13 +50,14 @@
 git clone https://github.com/AlHarisTech/ai-workstation-core.git
 cd ai-workstation-core
 
-# 2. Build Go adapters (git, fetch)
-go build -o bin/mcp-git ./runtime/mcp/v2/cmd/
-go build -o bin/mcp-fetch ./runtime/mcp/v2/cmd/
+# 2. Build Go adapter binary
+go build -o bin/mcp-server ./runtime/mcp/v2/cmd/
 
 # 3. Verify build
-./bin/mcp-git --version 2>/dev/null || echo "Binary built successfully"
+ls -l bin/mcp-server
 ```
+
+**Note:** There is a single Go binary (`mcp-server`). The adapter type (git, fetch, etc.) is selected at runtime via the `--adapter` flag. All systemd units use `go run` for development flexibility; pre-built binaries are optional for production hardening.
 
 ### Systemd Service Installation
 
@@ -241,6 +242,7 @@ WantedBy=default.target
 **Type:** Node.js server (systemd) → Chroma cloud API
 **Port:** 4114
 **Role:** Knowledge retrieval for adaptive routing (non-blocking)
+**Source:** Third-party npm package (`@modelcontextprotocol/server-chromadb` or equivalent Chroma MCP wrapper). Install via `npm install -g <package>` or clone from your Chroma MCP provider repository. The server code is **not** part of this repository — the operator must obtain and place it at the path referenced in `WorkingDirectory` and `ExecStart`.
 
 Systemd unit (`~/.config/systemd/user/chromadb.service`):
 
@@ -269,10 +271,11 @@ OpenCode config entry:
 ```jsonc
 // ~/.config/opencode/opencode.jsonc
 {
-  "mcpServers": {
+  "mcp": {
     "chromadb": {
-      "transport": "http",
-      "url": "http://localhost:4114"
+      "type": "remote",
+      "url": "http://localhost:4114",
+      "enabled": true
     }
   }
 }
@@ -285,6 +288,7 @@ Requires Chroma cloud credentials (API key, tenant, database).
 **Type:** Node.js server (systemd) → GitHub REST API
 **Port:** 4115
 **Role:** GitHub API operations (repo, issues, PRs)
+**Source:** Third-party npm package (e.g., `@modelcontextprotocol/server-github` or equivalent GitHub MCP wrapper). Install via `npm install -g <package>` or clone from your GitHub MCP provider repository. The server code is **not** part of this repository — the operator must obtain and place it at the path referenced in `WorkingDirectory` and `ExecStart`.
 
 Systemd unit (`~/.config/systemd/user/github.service`):
 
@@ -311,10 +315,11 @@ OpenCode config entry:
 ```jsonc
 // ~/.config/opencode/opencode.jsonc
 {
-  "mcpServers": {
+  "mcp": {
     "github": {
-      "transport": "http",
-      "url": "http://localhost:4115"
+      "type": "remote",
+      "url": "http://localhost:4115",
+      "enabled": true
     }
   }
 }
@@ -324,7 +329,7 @@ OpenCode config entry:
 
 ### Context7
 
-**Type:** Remote API (no local proxy)
+**Type:** Remote provider (no local proxy)
 **Port:** N/A
 **Role:** Context/documentation retrieval
 
@@ -333,23 +338,24 @@ OpenCode config entry:
 ```jsonc
 // ~/.config/opencode/opencode.jsonc
 {
-  "mcpServers": {
+  "mcp": {
     "context7": {
-      "description": "Context7 documentation retrieval",
-      "command": "",
-      "env": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
         "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
-      }
+      },
+      "enabled": true
     }
   }
 }
 ```
 
-Requires `CONTEXT7_API_KEY` environment variable. Context7 is a third-party service — availability depends on the provider.
+Requires `CONTEXT7_API_KEY` environment variable (header-based auth). Context7 is a third-party service — availability depends on the provider.
 
 ### Supabase
 
-**Type:** Remote service (cloud)
+**Type:** Remote provider (no local proxy)
 **Port:** N/A
 **Role:** Database operations
 
@@ -358,13 +364,11 @@ OpenCode config entry:
 ```jsonc
 // ~/.config/opencode/opencode.jsonc
 {
-  "mcpServers": {
+  "mcp": {
     "supabase": {
-      "description": "Supabase database",
-      "command": "",
-      "env": {
-        "SUPABASE_KEY": "${SUPABASE_KEY}"
-      }
+      "type": "remote",
+      "url": "https://mcp.supabase.com/mcp?project_ref=<project-ref>",
+      "enabled": true
     }
   }
 }
@@ -417,11 +421,14 @@ mcpServers:
 
 ### Verify Rate Limiter Active
 
-```go
-snap := metrics.Global().Snapshot()
-// RateLimited counter exists and is observable (may be 0 under normal load)
-// Rate limiter defaults: burst=10000, refill=5000/sec
+```bash
+# Run the rate limiter test to confirm it's active and functioning
+cd /path/to/workspace && go test ./runtime/mcp/v2/ -run "TestSecurity_RateLimit" -count=1 -v 2>&1 | tail -5
 ```
+
+Expected: `--- PASS: TestSecurity_RateLimit` — confirms rate limiter is wired and active.
+
+**Note:** Metrics (`RateLimited` counter, burst/refill thresholds) are programmatically observable via `metrics.Global().Snapshot()` but not exposed via CLI or HTTP dashboard in the current runtime. Default rate limiter: burst=10000, refill=5000/sec.
 
 ---
 
@@ -466,7 +473,7 @@ Expected: All tests pass, counters are accessible.
 # 4. Memory: store and retrieve
 # (Verify via opencode or direct request)
 
-# 5. All 28 security tests pass
+# 5. Security test suite passes
 cd /path/to/workspace && go test ./runtime/mcp/v2/ -run "TestSecurity" -count=1 -timeout 90s 2>&1 | tail -3
 ```
 
@@ -483,11 +490,12 @@ Expected: `ok` — all security tests pass.
 [ ] 4 systemd unit files deployed
 [ ] SSE proxy script exists (.opencode/mcp-sse-proxy.mjs)
 [ ] All 4 services enabled for boot-time start
-[ ] All 6 local ports (4110-4115) respond to HTTP (4 MCPs + ChromaDB + GitHub)
+[ ] Required ports 4110-4113 respond to HTTP (4 core MCPs)
+[ ] Optional ports 4114-4115 respond to HTTP if ChromaDB/GitHub are deployed
 [ ] opencode mcp list shows 8 servers
 [ ] Environment variables set (GITHUB_TOKEN, CONTEXT7_API_KEY, etc.)
 [ ] Linger enabled for boot-time service start
 [ ] First test request succeeds
 [ ] Metrics dashboard renders non-zero uptime
-[ ] All security tests pass
+[ ] Full security test suite passes
 ```
