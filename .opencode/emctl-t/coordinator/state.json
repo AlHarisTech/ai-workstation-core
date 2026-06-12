@@ -1,0 +1,60 @@
+{
+  "ts": "2026-06-12T16:43:04Z",
+  "domain_states": {
+    "core": {
+      "state": "DEGRADED_ISOLATED",
+      "failure_count": 1,
+      "last_policy": {
+        "ts": "2026-06-12T16:43:01Z",
+        "service": "mcp-filesystem",
+        "domain": "core",
+        "classification": "NODE_CRITICAL",
+        "policy_rule": "P-CORE-1",
+        "directive": "RESTART_ISOLATED"
+      }
+    },
+    "integration": {
+      "state": "EMERGENCY",
+      "failure_count": 3,
+      "last_policy": {
+        "ts": "2026-06-12T16:42:49Z",
+        "service": "chromadb-mcp",
+        "domain": "integration",
+        "classification": "CASCADE_RISK",
+        "policy_rule": "P-CORE-2",
+        "directive": "ESCALATE_TO_EMCL"
+      }
+    }
+  },
+  "intelligence": {
+    "risk_scores": {
+      "core": 2.5,
+      "integration": 6.5,
+      "mesh": 6.5
+    },
+    "propagation_risk": {
+      "core_to_integration": 0.75,
+      "core_to_int_rationale": "core services provide filesystem/git layer that integration may depend on",
+      "integration_to_core": 0.33,
+      "int_to_core_rationale": "integration services are external-facing \u2014 minimal core impact"
+    },
+    "conflicts": [],
+    "forecast": [
+      {
+        "source": "integration",
+        "target": "core",
+        "probability": 0.33,
+        "impact": "minimal \u2014 core does not depend on integration services",
+        "confidence": "high"
+      }
+    ]
+  },
+  "cross_policy": {
+    "directive": "SINGLE_DEGRADED",
+    "description": "single domain degraded \u2014 mesh risk 6.5, cross-domain propagation low",
+    "severity": 1,
+    "mesh_risk": 6.5
+  },
+  "mesh_health": "CRITICAL",
+  "_version": "Track 2.4 \u2014 Coordinator Intelligence Layer"
+}

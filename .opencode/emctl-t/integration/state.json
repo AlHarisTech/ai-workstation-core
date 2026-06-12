@@ -1,0 +1,12 @@
+{
+  "ts": "2026-06-12T16:39:21Z",
+  "cycle_count": 0,
+  "last_cycle_ts": null,
+  "last_cycle_duration_ms": null,
+  "avg_duration_ms": null,
+  "missed_cycles": 0,
+  "total_missed": 0,
+  "timing_drift_ms": 0,
+  "health": "UNKNOWN",
+  "domain": "integration"
+}

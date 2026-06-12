@@ -1,0 +1,180 @@
+{
+  "ts": "2026-06-12T18:47:28Z",
+  "agent_version": "v0.4-simulation-verified-execution",
+  "agent_state": "OBSERVE_ONLY",
+  "system_drift": "STABLE",
+  "state_vector": {
+    "ts": "2026-06-12T18:47:28Z",
+    "services": {
+      "mcp-filesystem": {
+        "status": "active",
+        "latency_ms": 0.92,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.87,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-git": {
+        "status": "active",
+        "latency_ms": 0.8,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.88,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-fetch": {
+        "status": "active",
+        "latency_ms": 0.86,
+        "drift_state": "STABLE",
+        "drift_ratio": 1.05,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-memory": {
+        "status": "active",
+        "latency_ms": 0.91,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.91,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "chromadb-mcp": {
+        "status": "active",
+        "latency_ms": 1.09,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.91,
+        "stability_pct": 100.0,
+        "is_core": false
+      },
+      "github-mcp": {
+        "status": "active",
+        "latency_ms": 1.06,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.95,
+        "stability_pct": 100.0,
+        "is_core": false
+      }
+    }
+  },
+  "policy_decisions": [
+    {
+      "ts": "2026-06-12T18:47:28Z",
+      "policy": "P0 \u2014 Evidence First",
+      "condition": "F3 state + F4 drift available",
+      "verdict": "PASS",
+      "reason": "F3=ok F4=ok"
+    },
+    {
+      "ts": "2026-06-12T18:47:28Z",
+      "policy": "P3 \u2014 Drift Sensitivity Gate",
+      "condition": "system_drift_state == STABLE",
+      "verdict": "PASS",
+      "reason": "drift_state=STABLE"
+    },
+    {
+      "ts": "2026-06-12T18:47:28Z",
+      "policy": "P4 \u2014 Cascade Protection",
+      "condition": "recent cascade events detected",
+      "verdict": "INACTIVE",
+      "reason": "0 cascade events in recent history"
+    }
+  ],
+  "gate_results": [
+    {
+      "ts": "2026-06-12T18:47:28Z",
+      "gate": "Gate 1 \u2014 Evidence",
+      "condition": "\u22652 independent signals",
+      "passed": true
+    },
+    {
+      "ts": "2026-06-12T18:47:28Z",
+      "gate": "Gate 4 \u2014 Stability",
+      "condition": "all services stable/drift=0",
+      "passed": true
+    },
+    {
+      "ts": "2026-06-12T18:47:28Z",
+      "gate": "Gate 5 \u2014 Cascade",
+      "condition": "dependency propagation detected",
+      "passed": false
+    }
+  ],
+  "soft_actions": [
+    {
+      "ts": "2026-06-12T18:47:28Z",
+      "action_type": "NOOP",
+      "service": "system",
+      "confidence": 0.0,
+      "reason": "no_soft_action_triggered",
+      "context": {}
+    }
+  ],
+  "stress_mode": false,
+  "stress_scenario": null,
+  "simulations": [],
+  "hard_action_candidates": [],
+  "rollback_readiness": {
+    "state_before": {
+      "mcp-filesystem": {
+        "status": "active",
+        "latency_ms": 0.92,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.87,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-git": {
+        "status": "active",
+        "latency_ms": 0.8,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.88,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-fetch": {
+        "status": "active",
+        "latency_ms": 0.86,
+        "drift_state": "STABLE",
+        "drift_ratio": 1.05,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-memory": {
+        "status": "active",
+        "latency_ms": 0.91,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.91,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "chromadb-mcp": {
+        "status": "active",
+        "latency_ms": 1.09,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.91,
+        "stability_pct": 100.0,
+        "is_core": false
+      },
+      "github-mcp": {
+        "status": "active",
+        "latency_ms": 1.06,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.95,
+        "stability_pct": 100.0,
+        "is_core": false
+      }
+    },
+    "rollback_available": true,
+    "estimated_recovery_s": 5
+  },
+  "summary": {
+    "policies_evaluated": 3,
+    "gates_checked": 3,
+    "soft_actions_emitted": 0,
+    "simulations_run": 0,
+    "hard_action_candidates": 0,
+    "hard_actions_allowed": false,
+    "recommended_mode": "OBSERVE_ONLY",
+    "rollback_ready": true
+  }
+}

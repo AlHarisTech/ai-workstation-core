@@ -1,0 +1,36 @@
+{
+  "ts": "2026-06-12T16:42:49Z",
+  "state": "EMERGENCY",
+  "domain": "integration",
+  "previous_state": "STABILIZING",
+  "transitions": [
+    {
+      "ts": "2026-06-12T16:39:21Z",
+      "from": "FULL_OPERATIONAL",
+      "to": "DEGRADED_ISOLATED",
+      "trigger": "failure: chromadb-mcp"
+    },
+    {
+      "ts": "2026-06-12T16:42:27Z",
+      "from": "DEGRADED_ISOLATED",
+      "to": "STABILIZING",
+      "trigger": "failure: chromadb-mcp"
+    },
+    {
+      "ts": "2026-06-12T16:42:49Z",
+      "from": "STABILIZING",
+      "to": "EMERGENCY",
+      "trigger": "failure: chromadb-mcp"
+    }
+  ],
+  "failure_count": 3,
+  "recent_failures": [],
+  "last_policy_decision": {
+    "ts": "2026-06-12T16:42:49Z",
+    "service": "chromadb-mcp",
+    "domain": "integration",
+    "classification": "CASCADE_RISK",
+    "policy_rule": "P-CORE-2",
+    "directive": "ESCALATE_TO_EMCL"
+  }
+}

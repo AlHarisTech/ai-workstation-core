@@ -1,0 +1,13 @@
+{
+  "ts": "2026-06-12T16:31:04Z",
+  "failures": [
+    {
+      "ts": "2026-06-12T16:31:04Z",
+      "service": "mcp-filesystem",
+      "classification": "NODE_CRITICAL",
+      "classification_reason": "mcp-filesystem failed \u2014 isolated, restart active",
+      "policy_rule": "P-CORE-1",
+      "policy_directive": "RESTART_ISOLATED"
+    }
+  ]
+}

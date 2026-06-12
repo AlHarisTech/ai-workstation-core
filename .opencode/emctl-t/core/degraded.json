@@ -1,0 +1,24 @@
+{
+  "ts": "2026-06-12T16:43:01Z",
+  "state": "DEGRADED_ISOLATED",
+  "domain": "core",
+  "previous_state": "FULL_OPERATIONAL",
+  "transitions": [
+    {
+      "ts": "2026-06-12T16:43:01Z",
+      "from": "FULL_OPERATIONAL",
+      "to": "DEGRADED_ISOLATED",
+      "trigger": "failure: mcp-filesystem"
+    }
+  ],
+  "failure_count": 1,
+  "recent_failures": [],
+  "last_policy_decision": {
+    "ts": "2026-06-12T16:43:01Z",
+    "service": "mcp-filesystem",
+    "domain": "core",
+    "classification": "NODE_CRITICAL",
+    "policy_rule": "P-CORE-1",
+    "directive": "RESTART_ISOLATED"
+  }
+}

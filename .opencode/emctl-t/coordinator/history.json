@@ -1,0 +1,50 @@
+{
+  "ts": "2026-06-12T16:43:04Z",
+  "snapshots": [
+    {
+      "ts": "2026-06-12T16:39:24Z",
+      "core_risk": 3.0,
+      "int_risk": 2.5,
+      "mesh_risk": 5.15,
+      "mesh_health": "WARN",
+      "core_state": "UNKNOWN",
+      "int_state": "DEGRADED_ISOLATED"
+    },
+    {
+      "ts": "2026-06-12T16:39:24Z",
+      "core_risk": 3.0,
+      "int_risk": 2.5,
+      "mesh_risk": 5.15,
+      "mesh_health": "WARN",
+      "core_state": "UNKNOWN",
+      "int_state": "DEGRADED_ISOLATED"
+    },
+    {
+      "ts": "2026-06-12T16:39:35Z",
+      "core_risk": 3.0,
+      "int_risk": 2.5,
+      "mesh_risk": 5.15,
+      "mesh_health": "WARN",
+      "core_state": "UNKNOWN",
+      "int_state": "DEGRADED_ISOLATED"
+    },
+    {
+      "ts": "2026-06-12T16:42:52Z",
+      "core_risk": 3.0,
+      "int_risk": 6.5,
+      "mesh_risk": 7.15,
+      "mesh_health": "CRITICAL",
+      "core_state": "UNKNOWN",
+      "int_state": "EMERGENCY"
+    },
+    {
+      "ts": "2026-06-12T16:43:04Z",
+      "core_risk": 2.5,
+      "int_risk": 6.5,
+      "mesh_risk": 6.5,
+      "mesh_health": "CRITICAL",
+      "core_state": "DEGRADED_ISOLATED",
+      "int_state": "EMERGENCY"
+    }
+  ]
+}

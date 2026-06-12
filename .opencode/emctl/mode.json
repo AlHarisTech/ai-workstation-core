@@ -1,0 +1,23 @@
+{
+  "mode": "OBSERVE_ONLY",
+  "previous_mode": "CONTROLLED_AUTOMATION",
+  "transitions": [
+    {
+      "ts": "2026-06-12T15:45:31Z",
+      "from": "OBSERVE_ONLY",
+      "to": "CONTROLLED_AUTOMATION",
+      "reason": "manual_override"
+    },
+    {
+      "ts": "2026-06-12T16:25:13Z",
+      "from": "CONTROLLED_AUTOMATION",
+      "to": "OBSERVE_ONLY",
+      "reason": "manual_override"
+    }
+  ],
+  "last_changed": "2026-06-12T16:25:13Z",
+  "activation_count": 0,
+  "blocked_count": 5,
+  "bypass_count": 0,
+  "total_decisions_evaluated": 12
+}

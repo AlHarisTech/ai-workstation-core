@@ -1,0 +1,11 @@
+{"type": "latency_drift", "service": "github-mcp", "ratio": 14.79, "from_ms": 1.34, "to_ms": 19.8, "severity": "warning", "ts": "2026-06-12T15:39:28Z"}
+{"type": "latency_drift", "service": "chromadb-mcp", "ratio": 17.07, "from_ms": 1.1, "to_ms": 18.83, "severity": "warning", "ts": "2026-06-12T15:50:28Z"}
+{"type": "latency_drift", "service": "github-mcp", "ratio": 8.66, "from_ms": 2.15, "to_ms": 18.65, "severity": "warning", "ts": "2026-06-12T15:50:28Z"}
+{"type": "latency_drift", "service": "chromadb-mcp", "ratio": 2.23, "from_ms": 1.07, "to_ms": 2.39, "severity": "info", "ts": "2026-06-12T16:16:28Z"}
+{"type": "latency_drift", "service": "mcp-filesystem", "ratio": 15.77, "from_ms": 0.86, "to_ms": 13.58, "severity": "warning", "ts": "2026-06-12T16:28:04Z"}
+{"type": "latency_drift", "service": "mcp-git", "ratio": 13.78, "from_ms": 0.74, "to_ms": 10.17, "severity": "warning", "ts": "2026-06-12T16:28:04Z"}
+{"type": "latency_drift", "service": "mcp-fetch", "ratio": 12.33, "from_ms": 0.73, "to_ms": 9.03, "severity": "warning", "ts": "2026-06-12T16:28:04Z"}
+{"type": "latency_drift", "service": "mcp-memory", "ratio": 11.04, "from_ms": 0.84, "to_ms": 9.28, "severity": "warning", "ts": "2026-06-12T16:28:04Z"}
+{"type": "latency_drift", "service": "chromadb-mcp", "ratio": 2.1, "from_ms": 1.08, "to_ms": 2.27, "severity": "info", "ts": "2026-06-12T18:36:32Z"}
+{"type": "latency_drift", "service": "mcp-filesystem", "ratio": 3.57, "from_ms": 1.06, "to_ms": 3.79, "severity": "warning", "ts": "2026-06-12T18:40:28Z"}
+{"type": "latency_drift", "service": "mcp-fetch", "ratio": 2.16, "from_ms": 0.76, "to_ms": 1.65, "severity": "info", "ts": "2026-06-12T18:42:28Z"}

@@ -1,0 +1,30 @@
+{
+  "ts": "2026-06-12T15:38:39Z",
+  "stress_mode": true,
+  "candidate": {
+    "action_type": "SIMULATED_RESTART",
+    "service": "github-mcp",
+    "gate_result": "PASSED_SIMULATION",
+    "blast_radius": "low"
+  },
+  "re_validation": {
+    "passed": true,
+    "reject_reasons": []
+  },
+  "translated_command": "systemctl --user restart github-mcp",
+  "action_description": "restart github-mcp via systemd",
+  "commit": true,
+  "executed": true,
+  "stdout": "",
+  "stderr": "",
+  "return_code": 0,
+  "post_state": {
+    "active": "active",
+    "main_pid": "247402"
+  },
+  "rollback_command": "echo 'restart executed \u2014 no rollback needed; service returned to active'",
+  "verdict": "EXECUTED_OK",
+  "rollback_ready": true,
+  "agent_version": "v0.4-simulation-verified-execution",
+  "agent_state": "FULL"
+}

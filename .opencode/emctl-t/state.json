@@ -1,0 +1,17 @@
+{
+  "ts": "2026-06-12T16:25:13Z",
+  "cycle_count": 4,
+  "last_cycle_ts": "2026-06-12T16:25:13Z",
+  "last_cycle_duration_ms": 85.0,
+  "avg_duration_ms": 13.4,
+  "missed_cycles": 0,
+  "total_missed": 0,
+  "timing_drift_ms": -299272.5,
+  "health": "HEALTHY",
+  "last_emcl_decision": {
+    "mode": "OBSERVE_ONLY",
+    "decision": "NOOP",
+    "drift": "CRITICAL",
+    "action": null
+  }
+}

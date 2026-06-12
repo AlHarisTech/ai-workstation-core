@@ -1,0 +1,86 @@
+{
+  "ts": "2026-06-12T16:25:13Z",
+  "mode": "OBSERVE_ONLY",
+  "decision": "NOOP",
+  "drift": "CRITICAL",
+  "agent_state": "FULL",
+  "gates": {
+    "Gate 1 \u2014 Evidence": "PASS",
+    "Gate 4 \u2014 Stability": "BLOCK",
+    "Gate 5 \u2014 Cascade": "BLOCK"
+  },
+  "all_gates_pass": false,
+  "service_states": {
+    "mcp-filesystem": "CRITICAL",
+    "mcp-git": "CRITICAL",
+    "mcp-fetch": "CRITICAL",
+    "mcp-memory": "CRITICAL",
+    "chromadb-mcp": "STABLE",
+    "github-mcp": "STABLE"
+  },
+  "critical_count": 4,
+  "drift_count": 0,
+  "action": null,
+  "activation_reasons": [],
+  "block_reasons": [
+    "gates blocking: Gate 4 \u2014 Stability, Gate 5 \u2014 Cascade"
+  ],
+  "bridge_result": null,
+  "mode_state_summary": {
+    "mode": "OBSERVE_ONLY",
+    "previous_mode": "CONTROLLED_AUTOMATION",
+    "last_changed": "2026-06-12T16:25:13Z",
+    "transitions_count": 2,
+    "activation_count": 0,
+    "blocked_count": 5,
+    "total_decisions": 12
+  },
+  "candidate_count": 9,
+  "simulation_count": 12,
+  "soft_action_count": [
+    {
+      "ts": "2026-06-12T16:25:13Z",
+      "action_type": "ALERT",
+      "service": "mcp-filesystem",
+      "confidence": 0.9,
+      "reason": "critical_drift",
+      "context": {
+        "drift_ratio": 5.0,
+        "stability_pct": 0.0
+      }
+    },
+    {
+      "ts": "2026-06-12T16:25:13Z",
+      "action_type": "ALERT",
+      "service": "mcp-git",
+      "confidence": 0.9,
+      "reason": "critical_drift",
+      "context": {
+        "drift_ratio": 5.0,
+        "stability_pct": 0.0
+      }
+    },
+    {
+      "ts": "2026-06-12T16:25:13Z",
+      "action_type": "ALERT",
+      "service": "mcp-fetch",
+      "confidence": 0.9,
+      "reason": "critical_drift",
+      "context": {
+        "drift_ratio": 5.0,
+        "stability_pct": 0.0
+      }
+    },
+    {
+      "ts": "2026-06-12T16:25:13Z",
+      "action_type": "ALERT",
+      "service": "mcp-memory",
+      "confidence": 0.9,
+      "reason": "critical_drift",
+      "context": {
+        "drift_ratio": 5.0,
+        "stability_pct": 0.0
+      }
+    }
+  ]
+}
