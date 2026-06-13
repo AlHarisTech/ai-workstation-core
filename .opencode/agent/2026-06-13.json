@@ -1,0 +1,484 @@
+{
+  "ts": "2026-06-13T08:42:28Z",
+  "agent_version": "v0.4-simulation-verified-execution",
+  "agent_state": "FULL",
+  "system_drift": "CRITICAL",
+  "state_vector": {
+    "ts": "2026-06-13T08:42:28Z",
+    "services": {
+      "mcp-filesystem": {
+        "status": "active",
+        "latency_ms": 0.9,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.23,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-git": {
+        "status": "active",
+        "latency_ms": 0.68,
+        "drift_state": "DRIFT",
+        "drift_ratio": 2.5,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-fetch": {
+        "status": "active",
+        "latency_ms": 0.73,
+        "drift_state": "STABLE",
+        "drift_ratio": 1.3,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-memory": {
+        "status": "active",
+        "latency_ms": 0.88,
+        "drift_state": "CRITICAL",
+        "drift_ratio": 3.14,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "chromadb-mcp": {
+        "status": "active",
+        "latency_ms": 0.97,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.33,
+        "stability_pct": 100.0,
+        "is_core": false
+      },
+      "github-mcp": {
+        "status": "active",
+        "latency_ms": 1.0,
+        "drift_state": "CRITICAL",
+        "drift_ratio": 4.3,
+        "stability_pct": 100.0,
+        "is_core": false
+      }
+    }
+  },
+  "policy_decisions": [
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "policy": "P0 \u2014 Evidence First",
+      "condition": "F3 state + F4 drift available",
+      "verdict": "PASS",
+      "reason": "F3=ok F4=ok"
+    },
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "policy": "P3 \u2014 Drift Sensitivity Gate",
+      "condition": "system_drift_state == STABLE",
+      "verdict": "WARN",
+      "reason": "drift_state=CRITICAL"
+    },
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "policy": "P4 \u2014 Cascade Protection",
+      "condition": "recent cascade events detected",
+      "verdict": "INACTIVE",
+      "reason": "0 cascade events in recent history"
+    },
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "policy": "Service Drift \u2014 mcp-git",
+      "condition": "drift_state == DRIFT",
+      "verdict": "WARN",
+      "reason": "ratio=2.5 stability=100.0%"
+    },
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "policy": "Service Drift \u2014 mcp-memory",
+      "condition": "drift_state == CRITICAL",
+      "verdict": "WARN",
+      "reason": "ratio=3.14 stability=100.0%"
+    },
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "policy": "Service Drift \u2014 github-mcp",
+      "condition": "drift_state == CRITICAL",
+      "verdict": "WARN",
+      "reason": "ratio=4.3 stability=100.0%"
+    }
+  ],
+  "gate_results": [
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "gate": "Gate 1 \u2014 Evidence",
+      "condition": "\u22652 independent signals",
+      "passed": true
+    },
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "gate": "Gate 4 \u2014 Stability",
+      "condition": "all services stable/drift=0",
+      "passed": false
+    },
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "gate": "Gate 5 \u2014 Cascade",
+      "condition": "dependency propagation detected",
+      "passed": false
+    }
+  ],
+  "soft_actions": [
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "action_type": "ALERT",
+      "service": "mcp-git",
+      "confidence": 0.6,
+      "reason": "drift_state_detected",
+      "context": {
+        "drift_ratio": 2.5,
+        "stability_pct": 100.0
+      }
+    },
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "action_type": "ESCALATION",
+      "service": "mcp-git",
+      "confidence": 0.7,
+      "reason": "multi_service_drift",
+      "context": {
+        "drift_ratio": 2.5,
+        "peers_affected": 2
+      }
+    },
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "action_type": "ALERT",
+      "service": "mcp-memory",
+      "confidence": 0.9,
+      "reason": "critical_drift",
+      "context": {
+        "drift_ratio": 3.14,
+        "stability_pct": 100.0
+      }
+    },
+    {
+      "ts": "2026-06-13T08:42:28Z",
+      "action_type": "ALERT",
+      "service": "github-mcp",
+      "confidence": 0.9,
+      "reason": "critical_drift",
+      "context": {
+        "drift_ratio": 4.3,
+        "stability_pct": 100.0
+      }
+    }
+  ],
+  "stress_mode": false,
+  "stress_scenario": null,
+  "simulations": [
+    {
+      "action_type": "SIMULATED_RESTART",
+      "service": "mcp-filesystem",
+      "recovery_time_estimate_s": 8,
+      "cascade_affected": [
+        "mcp-git",
+        "mcp-fetch",
+        "mcp-memory"
+      ],
+      "cascade_risk": 1.0,
+      "blast_radius": "high",
+      "reversibility_score": 1.0,
+      "stability_delta": "negative",
+      "gate_result": "BLOCKED_HIGH_CASCADE_RISK"
+    },
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "mcp-filesystem",
+      "downstream_services_lost": [
+        "mcp-git",
+        "mcp-fetch",
+        "mcp-memory"
+      ],
+      "fragmentation_score": 0.75,
+      "blast_radius": "high",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "BLOCKED_UNSTABLE_IMPACT"
+    },
+    {
+      "action_type": "SIMULATED_RESTART",
+      "service": "mcp-git",
+      "recovery_time_estimate_s": 6,
+      "cascade_affected": [
+        "mcp-fetch",
+        "mcp-memory"
+      ],
+      "cascade_risk": 0.67,
+      "blast_radius": "high",
+      "reversibility_score": 1.0,
+      "stability_delta": "negative",
+      "gate_result": "BLOCKED_UNSTABLE_IMPACT"
+    },
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "mcp-git",
+      "downstream_services_lost": [
+        "mcp-fetch",
+        "mcp-memory"
+      ],
+      "fragmentation_score": 0.5,
+      "blast_radius": "medium",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_RESTART",
+      "service": "mcp-fetch",
+      "recovery_time_estimate_s": 4,
+      "cascade_affected": [
+        "mcp-memory"
+      ],
+      "cascade_risk": 0.33,
+      "blast_radius": "medium",
+      "reversibility_score": 1.0,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "mcp-fetch",
+      "downstream_services_lost": [
+        "mcp-memory"
+      ],
+      "fragmentation_score": 0.25,
+      "blast_radius": "medium",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_RESTART",
+      "service": "mcp-memory",
+      "recovery_time_estimate_s": 2,
+      "cascade_affected": [],
+      "cascade_risk": 0.0,
+      "blast_radius": "low",
+      "reversibility_score": 1.0,
+      "stability_delta": "neutral",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "mcp-memory",
+      "downstream_services_lost": [],
+      "fragmentation_score": 0.0,
+      "blast_radius": "low",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_RESTART",
+      "service": "chromadb-mcp",
+      "recovery_time_estimate_s": 2,
+      "cascade_affected": [],
+      "cascade_risk": 0.0,
+      "blast_radius": "low",
+      "reversibility_score": 1.0,
+      "stability_delta": "neutral",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "chromadb-mcp",
+      "downstream_services_lost": [],
+      "fragmentation_score": 0.1,
+      "blast_radius": "medium",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_RESTART",
+      "service": "github-mcp",
+      "recovery_time_estimate_s": 2,
+      "cascade_affected": [],
+      "cascade_risk": 0.0,
+      "blast_radius": "low",
+      "reversibility_score": 1.0,
+      "stability_delta": "neutral",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "github-mcp",
+      "downstream_services_lost": [],
+      "fragmentation_score": 0.1,
+      "blast_radius": "medium",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    }
+  ],
+  "hard_action_candidates": [
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "mcp-git",
+      "downstream_services_lost": [
+        "mcp-fetch",
+        "mcp-memory"
+      ],
+      "fragmentation_score": 0.5,
+      "blast_radius": "medium",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_RESTART",
+      "service": "mcp-fetch",
+      "recovery_time_estimate_s": 4,
+      "cascade_affected": [
+        "mcp-memory"
+      ],
+      "cascade_risk": 0.33,
+      "blast_radius": "medium",
+      "reversibility_score": 1.0,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "mcp-fetch",
+      "downstream_services_lost": [
+        "mcp-memory"
+      ],
+      "fragmentation_score": 0.25,
+      "blast_radius": "medium",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_RESTART",
+      "service": "mcp-memory",
+      "recovery_time_estimate_s": 2,
+      "cascade_affected": [],
+      "cascade_risk": 0.0,
+      "blast_radius": "low",
+      "reversibility_score": 1.0,
+      "stability_delta": "neutral",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "mcp-memory",
+      "downstream_services_lost": [],
+      "fragmentation_score": 0.0,
+      "blast_radius": "low",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_RESTART",
+      "service": "chromadb-mcp",
+      "recovery_time_estimate_s": 2,
+      "cascade_affected": [],
+      "cascade_risk": 0.0,
+      "blast_radius": "low",
+      "reversibility_score": 1.0,
+      "stability_delta": "neutral",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "chromadb-mcp",
+      "downstream_services_lost": [],
+      "fragmentation_score": 0.1,
+      "blast_radius": "medium",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_RESTART",
+      "service": "github-mcp",
+      "recovery_time_estimate_s": 2,
+      "cascade_affected": [],
+      "cascade_risk": 0.0,
+      "blast_radius": "low",
+      "reversibility_score": 1.0,
+      "stability_delta": "neutral",
+      "gate_result": "PASSED_SIMULATION"
+    },
+    {
+      "action_type": "SIMULATED_ISOLATION",
+      "service": "github-mcp",
+      "downstream_services_lost": [],
+      "fragmentation_score": 0.1,
+      "blast_radius": "medium",
+      "reversibility_score": 0.7,
+      "stability_delta": "negative",
+      "gate_result": "PASSED_SIMULATION"
+    }
+  ],
+  "rollback_readiness": {
+    "state_before": {
+      "mcp-filesystem": {
+        "status": "active",
+        "latency_ms": 0.9,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.23,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-git": {
+        "status": "active",
+        "latency_ms": 0.68,
+        "drift_state": "DRIFT",
+        "drift_ratio": 2.5,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-fetch": {
+        "status": "active",
+        "latency_ms": 0.73,
+        "drift_state": "STABLE",
+        "drift_ratio": 1.3,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "mcp-memory": {
+        "status": "active",
+        "latency_ms": 0.88,
+        "drift_state": "CRITICAL",
+        "drift_ratio": 3.14,
+        "stability_pct": 100.0,
+        "is_core": true
+      },
+      "chromadb-mcp": {
+        "status": "active",
+        "latency_ms": 0.97,
+        "drift_state": "STABLE",
+        "drift_ratio": 0.33,
+        "stability_pct": 100.0,
+        "is_core": false
+      },
+      "github-mcp": {
+        "status": "active",
+        "latency_ms": 1.0,
+        "drift_state": "CRITICAL",
+        "drift_ratio": 4.3,
+        "stability_pct": 100.0,
+        "is_core": false
+      }
+    },
+    "rollback_available": true,
+    "estimated_recovery_s": 5
+  },
+  "summary": {
+    "policies_evaluated": 6,
+    "gates_checked": 3,
+    "soft_actions_emitted": 4,
+    "simulations_run": 12,
+    "hard_action_candidates": 9,
+    "hard_actions_allowed": true,
+    "recommended_mode": "FULL",
+    "rollback_ready": true
+  }
+}

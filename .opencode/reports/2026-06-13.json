@@ -1,0 +1,645 @@
+{
+  "ts": "2026-06-13T08:45:29Z",
+  "health": "YELLOW",
+  "window_5min": {
+    "observations": 4,
+    "events": 2
+  },
+  "window_15min": {
+    "observations": 14,
+    "events": 9
+  },
+  "incidents": [
+    {
+      "start": "2026-06-13T02:12:28Z",
+      "end": "2026-06-13T02:12:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-fetch",
+        "mcp-memory"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-13T02:14:28Z",
+      "end": "2026-06-13T02:14:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-filesystem"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T02:51:28Z",
+      "end": "2026-06-13T02:51:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-filesystem",
+        "mcp-git"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-13T03:00:28Z",
+      "end": "2026-06-13T03:00:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "chromadb-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T03:06:28Z",
+      "end": "2026-06-13T03:06:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "chromadb-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T03:15:28Z",
+      "end": "2026-06-13T03:15:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T03:18:28Z",
+      "end": "2026-06-13T03:18:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-filesystem"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T03:27:28Z",
+      "end": "2026-06-13T03:27:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-memory"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T03:43:28Z",
+      "end": "2026-06-13T03:43:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "chromadb-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T03:46:28Z",
+      "end": "2026-06-13T03:46:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-memory"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T03:50:28Z",
+      "end": "2026-06-13T03:50:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-filesystem",
+        "mcp-memory"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-13T03:54:28Z",
+      "end": "2026-06-13T03:54:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "chromadb-mcp",
+        "mcp-git"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-13T03:57:28Z",
+      "end": "2026-06-13T03:57:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp",
+        "mcp-memory"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-13T03:59:28Z",
+      "end": "2026-06-13T03:59:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-filesystem"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T04:09:28Z",
+      "end": "2026-06-13T04:09:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-git"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T04:11:28Z",
+      "end": "2026-06-13T04:11:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-memory"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T04:13:28Z",
+      "end": "2026-06-13T04:13:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-git"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T04:15:28Z",
+      "end": "2026-06-13T04:15:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-fetch"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T04:18:28Z",
+      "end": "2026-06-13T04:18:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-git"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T04:26:28Z",
+      "end": "2026-06-13T04:26:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-git"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T04:28:28Z",
+      "end": "2026-06-13T04:28:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "chromadb-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T04:35:28Z",
+      "end": "2026-06-13T04:35:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-memory"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T04:51:28Z",
+      "end": "2026-06-13T04:51:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-memory"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T06:57:28Z",
+      "end": "2026-06-13T06:57:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-memory"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T07:05:28Z",
+      "end": "2026-06-13T07:05:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-git"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T07:12:28Z",
+      "end": "2026-06-13T07:12:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-filesystem"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T07:14:28Z",
+      "end": "2026-06-13T07:14:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-git"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T07:16:28Z",
+      "end": "2026-06-13T07:16:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-filesystem",
+        "mcp-memory"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-13T07:18:22Z",
+      "end": "2026-06-13T07:19:29Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "chromadb-mcp",
+        "mcp-filesystem"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-13T07:31:28Z",
+      "end": "2026-06-13T07:31:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-memory"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T07:33:28Z",
+      "end": "2026-06-13T07:35:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-fetch",
+        "mcp-filesystem",
+        "mcp-memory"
+      ],
+      "event_count": 3
+    },
+    {
+      "start": "2026-06-13T07:38:05Z",
+      "end": "2026-06-13T07:38:05Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-git"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T07:47:14Z",
+      "end": "2026-06-13T07:48:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-fetch",
+        "mcp-git"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-13T07:50:26Z",
+      "end": "2026-06-13T07:50:26Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T07:53:05Z",
+      "end": "2026-06-13T07:53:05Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T08:05:31Z",
+      "end": "2026-06-13T08:05:31Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "chromadb-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T08:07:28Z",
+      "end": "2026-06-13T08:07:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-git"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T08:09:28Z",
+      "end": "2026-06-13T08:09:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-fetch",
+        "mcp-filesystem"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-13T08:13:01Z",
+      "end": "2026-06-13T08:13:01Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T08:19:30Z",
+      "end": "2026-06-13T08:20:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp",
+        "mcp-filesystem",
+        "mcp-git",
+        "mcp-memory"
+      ],
+      "event_count": 4
+    },
+    {
+      "start": "2026-06-13T08:26:28Z",
+      "end": "2026-06-13T08:27:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-fetch",
+        "mcp-filesystem",
+        "mcp-git",
+        "mcp-memory"
+      ],
+      "event_count": 4
+    },
+    {
+      "start": "2026-06-13T08:29:28Z",
+      "end": "2026-06-13T08:30:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "chromadb-mcp",
+        "mcp-filesystem",
+        "mcp-git"
+      ],
+      "event_count": 3
+    },
+    {
+      "start": "2026-06-13T08:34:28Z",
+      "end": "2026-06-13T08:34:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp",
+        "mcp-memory"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-13T08:36:28Z",
+      "end": "2026-06-13T08:36:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp",
+        "mcp-fetch",
+        "mcp-git",
+        "mcp-memory"
+      ],
+      "event_count": 4
+    },
+    {
+      "start": "2026-06-13T08:40:28Z",
+      "end": "2026-06-13T08:40:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-13T08:44:28Z",
+      "end": "2026-06-13T08:44:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp",
+        "mcp-git"
+      ],
+      "event_count": 2
+    }
+  ],
+  "drift_trends": {
+    "mcp-filesystem": {
+      "latency_avg": 3.05,
+      "latency_min": 0.76,
+      "latency_max": 145.56,
+      "latency_drift_ratio": 191.53,
+      "restarts_total": 0,
+      "restarts_per_hour": 0.0
+    },
+    "mcp-git": {
+      "latency_avg": 2.53,
+      "latency_min": 0.61,
+      "latency_max": 153.01,
+      "latency_drift_ratio": 250.84,
+      "restarts_total": 0,
+      "restarts_per_hour": 0.0
+    },
+    "mcp-fetch": {
+      "latency_avg": 0.99,
+      "latency_min": 0.61,
+      "latency_max": 28.38,
+      "latency_drift_ratio": 46.52,
+      "restarts_total": 0,
+      "restarts_per_hour": 0.0
+    },
+    "mcp-memory": {
+      "latency_avg": 2.95,
+      "latency_min": 0.75,
+      "latency_max": 112.32,
+      "latency_drift_ratio": 149.76,
+      "restarts_total": 0,
+      "restarts_per_hour": 0.0
+    },
+    "chromadb-mcp": {
+      "latency_avg": 2.51,
+      "latency_min": 0.93,
+      "latency_max": 98.21,
+      "latency_drift_ratio": 105.6,
+      "restarts_total": 0,
+      "restarts_per_hour": 0.0
+    },
+    "github-mcp": {
+      "latency_avg": 2.61,
+      "latency_min": 0.94,
+      "latency_max": 137.02,
+      "latency_drift_ratio": 145.77,
+      "restarts_total": 0,
+      "restarts_per_hour": 0.0
+    }
+  },
+  "system_wide": {
+    "total_observations": 297,
+    "total_events": 70,
+    "uptime_minutes": 297
+  }
+}

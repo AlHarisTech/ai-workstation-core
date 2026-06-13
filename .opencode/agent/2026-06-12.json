@@ -1,56 +1,56 @@
 {
-  "ts": "2026-06-12T18:47:28Z",
+  "ts": "2026-06-12T22:02:28Z",
   "agent_version": "v0.4-simulation-verified-execution",
   "agent_state": "OBSERVE_ONLY",
   "system_drift": "STABLE",
   "state_vector": {
-    "ts": "2026-06-12T18:47:28Z",
+    "ts": "2026-06-12T22:02:28Z",
     "services": {
       "mcp-filesystem": {
         "status": "active",
-        "latency_ms": 0.92,
+        "latency_ms": 0.85,
         "drift_state": "STABLE",
-        "drift_ratio": 0.87,
+        "drift_ratio": 0.99,
         "stability_pct": 100.0,
         "is_core": true
       },
       "mcp-git": {
         "status": "active",
-        "latency_ms": 0.8,
+        "latency_ms": 0.95,
         "drift_state": "STABLE",
-        "drift_ratio": 0.88,
+        "drift_ratio": 0.98,
         "stability_pct": 100.0,
         "is_core": true
       },
       "mcp-fetch": {
         "status": "active",
-        "latency_ms": 0.86,
+        "latency_ms": 0.72,
         "drift_state": "STABLE",
-        "drift_ratio": 1.05,
+        "drift_ratio": 0.9,
         "stability_pct": 100.0,
         "is_core": true
       },
       "mcp-memory": {
         "status": "active",
-        "latency_ms": 0.91,
+        "latency_ms": 0.81,
         "drift_state": "STABLE",
-        "drift_ratio": 0.91,
+        "drift_ratio": 0.93,
         "stability_pct": 100.0,
         "is_core": true
       },
       "chromadb-mcp": {
         "status": "active",
-        "latency_ms": 1.09,
+        "latency_ms": 0.95,
         "drift_state": "STABLE",
-        "drift_ratio": 0.91,
+        "drift_ratio": 1.05,
         "stability_pct": 100.0,
         "is_core": false
       },
       "github-mcp": {
         "status": "active",
-        "latency_ms": 1.06,
+        "latency_ms": 1.03,
         "drift_state": "STABLE",
-        "drift_ratio": 0.95,
+        "drift_ratio": 0.98,
         "stability_pct": 100.0,
         "is_core": false
       }
@@ -58,21 +58,21 @@
   },
   "policy_decisions": [
     {
-      "ts": "2026-06-12T18:47:28Z",
+      "ts": "2026-06-12T22:02:28Z",
       "policy": "P0 \u2014 Evidence First",
       "condition": "F3 state + F4 drift available",
       "verdict": "PASS",
       "reason": "F3=ok F4=ok"
     },
     {
-      "ts": "2026-06-12T18:47:28Z",
+      "ts": "2026-06-12T22:02:28Z",
       "policy": "P3 \u2014 Drift Sensitivity Gate",
       "condition": "system_drift_state == STABLE",
       "verdict": "PASS",
       "reason": "drift_state=STABLE"
     },
     {
-      "ts": "2026-06-12T18:47:28Z",
+      "ts": "2026-06-12T22:02:28Z",
       "policy": "P4 \u2014 Cascade Protection",
       "condition": "recent cascade events detected",
       "verdict": "INACTIVE",
@@ -81,19 +81,19 @@
   ],
   "gate_results": [
     {
-      "ts": "2026-06-12T18:47:28Z",
+      "ts": "2026-06-12T22:02:28Z",
       "gate": "Gate 1 \u2014 Evidence",
       "condition": "\u22652 independent signals",
       "passed": true
     },
     {
-      "ts": "2026-06-12T18:47:28Z",
+      "ts": "2026-06-12T22:02:28Z",
       "gate": "Gate 4 \u2014 Stability",
       "condition": "all services stable/drift=0",
       "passed": true
     },
     {
-      "ts": "2026-06-12T18:47:28Z",
+      "ts": "2026-06-12T22:02:28Z",
       "gate": "Gate 5 \u2014 Cascade",
       "condition": "dependency propagation detected",
       "passed": false
@@ -101,7 +101,7 @@
   ],
   "soft_actions": [
     {
-      "ts": "2026-06-12T18:47:28Z",
+      "ts": "2026-06-12T22:02:28Z",
       "action_type": "NOOP",
       "service": "system",
       "confidence": 0.0,
@@ -117,49 +117,49 @@
     "state_before": {
       "mcp-filesystem": {
         "status": "active",
-        "latency_ms": 0.92,
+        "latency_ms": 0.85,
         "drift_state": "STABLE",
-        "drift_ratio": 0.87,
+        "drift_ratio": 0.99,
         "stability_pct": 100.0,
         "is_core": true
       },
       "mcp-git": {
         "status": "active",
-        "latency_ms": 0.8,
+        "latency_ms": 0.95,
         "drift_state": "STABLE",
-        "drift_ratio": 0.88,
+        "drift_ratio": 0.98,
         "stability_pct": 100.0,
         "is_core": true
       },
       "mcp-fetch": {
         "status": "active",
-        "latency_ms": 0.86,
+        "latency_ms": 0.72,
         "drift_state": "STABLE",
-        "drift_ratio": 1.05,
+        "drift_ratio": 0.9,
         "stability_pct": 100.0,
         "is_core": true
       },
       "mcp-memory": {
         "status": "active",
-        "latency_ms": 0.91,
+        "latency_ms": 0.81,
         "drift_state": "STABLE",
-        "drift_ratio": 0.91,
+        "drift_ratio": 0.93,
         "stability_pct": 100.0,
         "is_core": true
       },
       "chromadb-mcp": {
         "status": "active",
-        "latency_ms": 1.09,
+        "latency_ms": 0.95,
         "drift_state": "STABLE",
-        "drift_ratio": 0.91,
+        "drift_ratio": 1.05,
         "stability_pct": 100.0,
         "is_core": false
       },
       "github-mcp": {
         "status": "active",
-        "latency_ms": 1.06,
+        "latency_ms": 1.03,
         "drift_state": "STABLE",
-        "drift_ratio": 0.95,
+        "drift_ratio": 0.98,
         "stability_pct": 100.0,
         "is_core": false
       }

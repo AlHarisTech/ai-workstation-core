@@ -1,13 +1,13 @@
 {
-  "ts": "2026-06-12T18:50:29Z",
+  "ts": "2026-06-12T22:00:28Z",
   "health": "GREEN",
   "window_5min": {
-    "observations": 4,
+    "observations": 5,
     "events": 0
   },
   "window_15min": {
     "observations": 15,
-    "events": 3
+    "events": 2
   },
   "incidents": [
     {
@@ -97,51 +97,233 @@
         "mcp-fetch"
       ],
       "event_count": 1
+    },
+    {
+      "start": "2026-06-12T19:05:16Z",
+      "end": "2026-06-12T19:05:16Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-fetch"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T19:07:31Z",
+      "end": "2026-06-12T19:07:31Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-memory"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T19:26:28Z",
+      "end": "2026-06-12T19:26:28Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-fetch"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T19:32:28Z",
+      "end": "2026-06-12T19:33:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-filesystem",
+        "mcp-memory"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-12T19:53:11Z",
+      "end": "2026-06-12T19:53:11Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-filesystem"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T19:56:31Z",
+      "end": "2026-06-12T19:56:31Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-memory"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T20:09:27Z",
+      "end": "2026-06-12T20:09:27Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-filesystem",
+        "mcp-memory"
+      ],
+      "event_count": 2
+    },
+    {
+      "start": "2026-06-12T20:14:28Z",
+      "end": "2026-06-12T20:14:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-git"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T20:30:04Z",
+      "end": "2026-06-12T20:30:04Z",
+      "severity": "warning",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "chromadb-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T20:45:28Z",
+      "end": "2026-06-12T20:45:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-memory"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T20:48:28Z",
+      "end": "2026-06-12T20:48:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T21:01:28Z",
+      "end": "2026-06-12T21:01:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-fetch"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T21:19:28Z",
+      "end": "2026-06-12T21:19:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "github-mcp"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T21:48:28Z",
+      "end": "2026-06-12T21:48:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-fetch"
+      ],
+      "event_count": 1
+    },
+    {
+      "start": "2026-06-12T21:54:28Z",
+      "end": "2026-06-12T21:54:28Z",
+      "severity": "info",
+      "types": [
+        "latency_drift"
+      ],
+      "services": [
+        "mcp-git"
+      ],
+      "event_count": 1
     }
   ],
   "drift_trends": {
     "mcp-filesystem": {
-      "latency_avg": 1.61,
-      "latency_min": 0.79,
+      "latency_avg": 1.33,
+      "latency_min": 0.78,
       "latency_max": 13.58,
-      "latency_drift_ratio": 17.19,
+      "latency_drift_ratio": 17.41,
       "restarts_total": -6,
-      "restarts_per_hour": -1.95
+      "restarts_per_hour": -0.96
     },
     "mcp-git": {
-      "latency_avg": 0.99,
-      "latency_min": 0.7,
+      "latency_avg": 0.92,
+      "latency_min": 0.66,
       "latency_max": 10.17,
-      "latency_drift_ratio": 14.53,
+      "latency_drift_ratio": 15.41,
       "restarts_total": 0,
       "restarts_per_hour": 0.0
     },
     "mcp-fetch": {
-      "latency_avg": 0.99,
-      "latency_min": 0.66,
+      "latency_avg": 0.94,
+      "latency_min": 0.65,
       "latency_max": 9.03,
-      "latency_drift_ratio": 13.68,
+      "latency_drift_ratio": 13.89,
       "restarts_total": 0,
       "restarts_per_hour": 0.0
     },
     "mcp-memory": {
-      "latency_avg": 1.13,
-      "latency_min": 0.8,
+      "latency_avg": 1.1,
+      "latency_min": 0.78,
       "latency_max": 9.28,
-      "latency_drift_ratio": 11.6,
+      "latency_drift_ratio": 11.9,
       "restarts_total": 0,
       "restarts_per_hour": 0.0
     },
     "chromadb-mcp": {
-      "latency_avg": 1.77,
-      "latency_min": 1.01,
+      "latency_avg": 1.52,
+      "latency_min": 0.98,
       "latency_max": 22.18,
-      "latency_drift_ratio": 21.96,
+      "latency_drift_ratio": 22.63,
       "restarts_total": 0,
       "restarts_per_hour": 0.0
     },
     "github-mcp": {
-      "latency_avg": 1.53,
+      "latency_avg": 1.38,
       "latency_min": 0.99,
       "latency_max": 19.8,
       "latency_drift_ratio": 20.0,
@@ -150,8 +332,8 @@
     }
   },
   "system_wide": {
-    "total_observations": 185,
-    "total_events": 11,
-    "uptime_minutes": 185
+    "total_observations": 375,
+    "total_events": 28,
+    "uptime_minutes": 375
   }
 }

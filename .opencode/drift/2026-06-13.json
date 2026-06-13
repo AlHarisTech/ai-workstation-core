@@ -1,0 +1,94 @@
+{
+  "ts": "2026-06-13T08:46:28Z",
+  "observations_total": 298,
+  "baseline_model": "F4.1 ADAPTIVE (rolling + long-term reference)",
+  "long_term_baseline": {
+    "samples": 10,
+    "window": "2026-06-13T01:55:06Z \u2192 2026-06-13T02:04:28Z"
+  },
+  "rolling_baseline": {
+    "samples": 30,
+    "window": "2026-06-13T08:16:28Z \u2192 2026-06-13T08:45:28Z"
+  },
+  "system_drift_state": "DRIFT",
+  "core_drift_count": 1,
+  "integration_drift_count": 0,
+  "per_service": {
+    "mcp-filesystem": {
+      "state": "STABLE",
+      "latency_ratio_vs_rolling": 0.22,
+      "latency_ratio_vs_longterm": 1.08,
+      "latency_rolling_ms": 5.04,
+      "latency_longterm_ms": 1.01,
+      "latency_current_ms": 1.09,
+      "stability_pct_5m": 100.0,
+      "rss_rolling_kb": 33621.0,
+      "rss_current_kb": 33503.0,
+      "_is_core": true
+    },
+    "mcp-git": {
+      "state": "DRIFT",
+      "latency_ratio_vs_rolling": 1.91,
+      "latency_ratio_vs_longterm": 14.31,
+      "latency_rolling_ms": 5.76,
+      "latency_longterm_ms": 0.77,
+      "latency_current_ms": 11.02,
+      "stability_pct_5m": 100.0,
+      "rss_rolling_kb": 28727.0,
+      "rss_current_kb": 28945.0,
+      "_is_core": true
+    },
+    "mcp-fetch": {
+      "state": "STABLE",
+      "latency_ratio_vs_rolling": 0.84,
+      "latency_ratio_vs_longterm": 0.87,
+      "latency_rolling_ms": 0.83,
+      "latency_longterm_ms": 0.8,
+      "latency_current_ms": 0.7,
+      "stability_pct_5m": 100.0,
+      "rss_rolling_kb": 33947.0,
+      "rss_current_kb": 34069.0,
+      "_is_core": true
+    },
+    "mcp-memory": {
+      "state": "STABLE",
+      "latency_ratio_vs_rolling": 0.11,
+      "latency_ratio_vs_longterm": 0.99,
+      "latency_rolling_ms": 7.98,
+      "latency_longterm_ms": 0.85,
+      "latency_current_ms": 0.84,
+      "stability_pct_5m": 100.0,
+      "rss_rolling_kb": 28792.0,
+      "rss_current_kb": 28797.0,
+      "_is_core": true
+    },
+    "chromadb-mcp": {
+      "state": "STABLE",
+      "latency_ratio_vs_rolling": 0.24,
+      "latency_ratio_vs_longterm": 0.93,
+      "latency_rolling_ms": 4.14,
+      "latency_longterm_ms": 1.09,
+      "latency_current_ms": 1.01,
+      "stability_pct_5m": 100.0,
+      "rss_rolling_kb": 44185.0,
+      "rss_current_kb": 44202.0
+    },
+    "github-mcp": {
+      "state": "STABLE",
+      "latency_ratio_vs_rolling": 1.05,
+      "latency_ratio_vs_longterm": 5.75,
+      "latency_rolling_ms": 6.2,
+      "latency_longterm_ms": 1.13,
+      "latency_current_ms": 6.5,
+      "stability_pct_5m": 100.0,
+      "rss_rolling_kb": 43584.0,
+      "rss_current_kb": 43949.0
+    }
+  },
+  "summary": {
+    "stable": 5,
+    "pre_drift": 0,
+    "drift": 1,
+    "critical": 0
+  }
+}

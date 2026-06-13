@@ -107,3 +107,9 @@
 {"ts": "2026-06-12T18:36:32Z", "action_type": "ESCALATION", "service": "mcp-fetch", "confidence": 0.7, "reason": "multi_service_drift", "context": {"drift_ratio": 2.57, "peers_affected": 3}}
 {"ts": "2026-06-12T18:36:32Z", "action_type": "ALERT", "service": "mcp-memory", "confidence": 0.6, "reason": "drift_state_detected", "context": {"drift_ratio": 2.53, "stability_pct": 100.0}}
 {"ts": "2026-06-12T18:36:32Z", "action_type": "ESCALATION", "service": "mcp-memory", "confidence": 0.7, "reason": "multi_service_drift", "context": {"drift_ratio": 2.53, "peers_affected": 3}}
+{"ts": "2026-06-12T19:12:28Z", "action_type": "FLAG", "service": "mcp-memory", "confidence": 0.4, "reason": "early_drift_signature", "context": {"drift_ratio": 1.46, "latency_ms": 1.0}}
+{"ts": "2026-06-12T19:57:18Z", "action_type": "FLAG", "service": "mcp-filesystem", "confidence": 0.4, "reason": "early_drift_signature", "context": {"drift_ratio": 1.48, "latency_ms": 1.5}}
+{"ts": "2026-06-12T20:02:28Z", "action_type": "FLAG", "service": "mcp-memory", "confidence": 0.4, "reason": "early_drift_signature", "context": {"drift_ratio": 1.36, "latency_ms": 1.22}}
+{"ts": "2026-06-12T20:17:21Z", "action_type": "FLAG", "service": "mcp-git", "confidence": 0.4, "reason": "early_drift_signature", "context": {"drift_ratio": 1.43, "latency_ms": 0.78}}
+{"ts": "2026-06-12T20:32:28Z", "action_type": "FLAG", "service": "mcp-memory", "confidence": 0.4, "reason": "early_drift_signature", "context": {"drift_ratio": 1.4, "latency_ms": 0.84}}
+{"ts": "2026-06-12T20:32:28Z", "action_type": "FLAG", "service": "chromadb-mcp", "confidence": 0.4, "reason": "early_drift_signature", "context": {"drift_ratio": 1.6, "latency_ms": 1.03}}
