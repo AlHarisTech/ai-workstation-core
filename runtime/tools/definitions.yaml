@@ -123,3 +123,16 @@ registry:
       governance:
         require_session: false
         audit_level: "summary"
+
+    - id: "check"
+      name: "Validation Gate"
+      type: "built-in"
+      version: "1.0"
+      description: "Runs a validation or verification check against a named gate. Returns pass/fail with reason. Used for pre-flight validation, safety gates, and decision verification."
+      capabilities:
+        - "validation"
+        - "gate-check"
+      protocol: "local-function"
+      governance:
+        require_session: true
+        audit_level: "summary"

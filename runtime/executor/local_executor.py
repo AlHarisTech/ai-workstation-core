@@ -56,6 +56,7 @@ class LocalExecutor:
         "memory_store": "_handle_memory_store",
         "memory_retrieve": "_handle_memory_retrieve",
         "session_create": "_handle_session_create",
+        "check": "_handle_check",
     }
 
     def __init__(self, registry, session_validator=None):
@@ -83,7 +84,7 @@ class LocalExecutor:
         try:
             tool_def = self._registry.get_tool(tool_id)
         except ToolNotFoundError as e:
-            return self._error(str(e), duration_ms=time.time() - start)
+            return self._handle_invalid_tool(tool_id, arguments, str(e), start)
 
         handler_name = self.HANDLERS.get(tool_id)
         if handler_name is None:
@@ -162,6 +163,17 @@ class LocalExecutor:
             "error": message,
             "error_trace": error_trace,
             "duration_ms": round(float(duration_ms), 2),
+        }
+
+    @staticmethod
+    def _handle_invalid_tool(tool_id, arguments, message, start):
+        available = sorted(LocalExecutor.HANDLERS.keys())
+        return {
+            "status": "error",
+            "result": None,
+            "error": f"Unknown tool '{tool_id}'. Available tools: {available}. {message}",
+            "error_code": "UNKNOWN_TOOL",
+            "duration_ms": round((time.time() - start) * 1000, 2),
         }
 
     @staticmethod
@@ -299,3 +311,30 @@ class LocalExecutor:
         user_id = arguments.get("user_id", "default")
         session = self._session_validator.create_session(project_id, user_id)
         return {"session": session}
+
+    def _handle_check(self, tool_def, arguments, session_context):
+        gate = arguments.get("gate", arguments.get("name", "unknown"))
+        condition = arguments.get("condition", arguments.get("expr", ""))
+        expected = arguments.get("expected", True)
+
+        result = {
+            "gate": gate,
+            "passed": False,
+            "reason": f"Gate '{gate}' requires explicit condition to evaluate",
+        }
+
+        if not condition:
+            return result
+
+        condition_str = str(condition).strip().lower()
+        if condition_str in ("true", "yes", "pass", "ok", "1"):
+            result["passed"] = True
+            result["reason"] = f"Gate '{gate}' passed"
+        elif condition_str in ("false", "no", "fail", "0"):
+            result["passed"] = False
+            result["reason"] = f"Gate '{gate}' failed"
+        else:
+            result["passed"] = bool(condition) if isinstance(condition, bool) else bool(expected)
+            result["reason"] = f"Gate '{gate}': condition evaluated to {result['passed']}"
+
+        return result
