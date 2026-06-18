@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "schema_version": "1.0", "spec_hash": "invariant-all-success-001",
+    "compilation_id": "inv-all-success", "compiled_at": "2026-06-18T00:00:00Z",
+    "source_spec": "invariant-fixture", "compiler_version": "1.0.0"
+  },
+  "execution_plan": {
+    "scheduling_model": "static_dag", "execution_strategy": "dependency_first",
+    "max_parallelism": 4, "fail_strategy": "fast", "execution_mode": "2"
+  },
+  "units": [
+    {"id": "root", "type": "tool", "binding": {"contract": "internal/noop", "isolation": "inline"}, "dependencies": [], "data_flow": {"outputs": ["r"]}, "validation": {"preconditions": [], "postconditions": [], "invariants": [], "failure_modes": []}, "scheduling": {"priority": 1}, "context": {"mode": "fresh", "tools": []}, "governance": {"required_approvals": [], "change_scope": "read_only"}, "activation": {"condition": "all_success", "requires": [], "optional": []}},
+    {"id": "mid_a", "type": "tool", "binding": {"contract": "internal/noop", "isolation": "inline"}, "dependencies": ["root"], "data_flow": {"outputs": ["ma"]}, "validation": {"preconditions": [], "postconditions": [], "invariants": [], "failure_modes": []}, "scheduling": {"priority": 1}, "context": {"mode": "inherit", "tools": []}, "governance": {"required_approvals": [], "change_scope": "read_only"}, "activation": {"condition": "all_success", "requires": ["root"], "optional": []}},
+    {"id": "mid_b", "type": "tool", "binding": {"contract": "internal/noop", "isolation": "inline"}, "dependencies": ["root"], "data_flow": {"outputs": ["mb"]}, "validation": {"preconditions": [], "postconditions": [], "invariants": [], "failure_modes": []}, "scheduling": {"priority": 1}, "context": {"mode": "inherit", "tools": []}, "governance": {"required_approvals": [], "change_scope": "read_only"}, "activation": {"condition": "all_success", "requires": ["root"], "optional": []}},
+    {"id": "leaf", "type": "tool", "binding": {"contract": "internal/noop", "isolation": "inline"}, "dependencies": ["mid_a", "mid_b"], "data_flow": {"outputs": ["l"]}, "validation": {"preconditions": [], "postconditions": [], "invariants": [], "failure_modes": []}, "scheduling": {"priority": 1}, "context": {"mode": "inherit", "tools": []}, "governance": {"required_approvals": [], "change_scope": "read_only"}, "activation": {"condition": "all_success", "requires": ["mid_a", "mid_b"], "optional": []}}
+  ],
+  "graph": {
+    "dag": {
+      "nodes": ["root", "mid_a", "mid_b", "leaf"],
+      "edges": [
+        {"from": "root", "to": "mid_a", "type": "dependency"},
+        {"from": "root", "to": "mid_b", "type": "dependency"},
+        {"from": "mid_a", "to": "leaf", "type": "dependency"},
+        {"from": "mid_b", "to": "leaf", "type": "dependency"}
+      ]
+    },
+    "cycles": []
+  },
+  "assertions": [], "failure_modes": []
+}

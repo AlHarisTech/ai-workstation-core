@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "spec_hash": "escalate-fixture-001",
+    "compilation_id": "test-escalate-001",
+    "compiled_at": "2026-06-18T00:00:00Z",
+    "source_spec": "test-fixture-escalate",
+    "compiler_version": "1.0.0"
+  },
+  "execution_plan": {
+    "scheduling_model": "static_dag",
+    "execution_strategy": "dependency_first",
+    "max_parallelism": 4,
+    "fail_strategy": "fast",
+    "execution_mode": "2"
+  },
+  "units": [
+    {
+      "id": "start",
+      "type": "tool",
+      "binding": { "contract": "internal/noop", "isolation": "inline" },
+      "dependencies": [],
+      "data_flow": { "outputs": ["started"] },
+      "validation": { "preconditions": [], "postconditions": [], "invariants": [], "failure_modes": [] },
+      "scheduling": { "priority": 1 },
+      "context": { "mode": "fresh", "tools": [] },
+      "governance": { "required_approvals": [], "change_scope": "read_only" },
+      "activation": { "condition": "all_success", "requires": [], "optional": [] }
+    },
+    {
+      "id": "decision_gate",
+      "type": "gate",
+      "binding": { "contract": "internal/noop", "isolation": "inline" },
+      "dependencies": ["start"],
+      "data_flow": { "outputs": [] },
+      "validation": { "preconditions": [], "postconditions": [], "invariants": [], "failure_modes": [] },
+      "scheduling": { "priority": 1 },
+      "context": { "mode": "inherit", "tools": [] },
+      "governance": { "required_approvals": [], "change_scope": "read_only" },
+      "activation": { "condition": "all_success", "requires": ["start"], "optional": [] },
+      "gate": {
+        "branches": [
+          { "condition": "escalate_path", "target": "ESCALATE" }
+        ],
+        "default": "normal_path"
+      }
+    },
+    {
+      "id": "normal_path",
+      "type": "tool",
+      "binding": { "contract": "internal/noop", "isolation": "inline" },
+      "dependencies": ["decision_gate"],
+      "data_flow": { "outputs": ["result"] },
+      "validation": { "preconditions": [], "postconditions": [], "invariants": [], "failure_modes": [] },
+      "scheduling": { "priority": 1 },
+      "context": { "mode": "inherit", "tools": [] },
+      "governance": { "required_approvals": [], "change_scope": "read_only" },
+      "activation": { "condition": "all_success", "requires": ["decision_gate"], "optional": [] }
+    }
+  ],
+  "graph": {
+    "dag": {
+      "nodes": ["start", "decision_gate", "normal_path"],
+      "edges": [
+        { "from": "start", "to": "decision_gate", "type": "dependency" },
+        { "from": "decision_gate", "to": "normal_path", "type": "dependency" }
+      ]
+    },
+    "cycles": []
+  },
+  "assertions": [],
+  "failure_modes": []
+}

@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "spec_hash": "abc123def456",
+    "compilation_id": "test-execution-001",
+    "compiled_at": "2026-06-18T00:00:00Z",
+    "source_spec": "test-fixture",
+    "compiler_version": "1.0.0"
+  },
+  "execution_plan": {
+    "scheduling_model": "static_dag",
+    "execution_strategy": "dependency_first",
+    "max_parallelism": 4,
+    "fail_strategy": "fast",
+    "execution_mode": "2"
+  },
+  "units": [
+    {
+      "id": "A",
+      "type": "tool",
+      "binding": { "contract": "internal/noop", "isolation": "inline" },
+      "dependencies": [],
+      "data_flow": { "outputs": ["result_a"] },
+      "validation": { "preconditions": [], "postconditions": [], "invariants": [], "failure_modes": [] },
+      "scheduling": { "priority": 1 },
+      "context": { "mode": "fresh", "tools": [] },
+      "governance": { "required_approvals": [], "change_scope": "read_only" },
+      "activation": { "condition": "all_success", "requires": [], "optional": [] }
+    },
+    {
+      "id": "B",
+      "type": "tool",
+      "binding": { "contract": "internal/noop", "isolation": "inline" },
+      "dependencies": ["A"],
+      "data_flow": { "outputs": ["result_b"], "inputs": [{ "key": "in", "from": { "unit": "A", "output": "result_a" }, "contract": "dc-001" }] },
+      "validation": { "preconditions": [], "postconditions": [], "invariants": [], "failure_modes": [] },
+      "scheduling": { "priority": 1 },
+      "context": { "mode": "inherit", "tools": [] },
+      "governance": { "required_approvals": [], "change_scope": "read_only" },
+      "activation": { "condition": "all_success", "requires": ["A"], "optional": [] }
+    },
+    {
+      "id": "C",
+      "type": "tool",
+      "binding": { "contract": "internal/echo", "isolation": "inline" },
+      "dependencies": [],
+      "data_flow": { "outputs": ["result_c"] },
+      "validation": { "preconditions": [], "postconditions": [], "invariants": [], "failure_modes": [] },
+      "scheduling": { "priority": 1 },
+      "context": { "mode": "fresh", "tools": [] },
+      "governance": { "required_approvals": [], "change_scope": "read_only" },
+      "activation": { "condition": "all_success", "requires": [], "optional": [] }
+    }
+  ],
+  "graph": {
+    "dag": {
+      "nodes": ["A", "B", "C"],
+      "edges": [
+        { "from": "A", "to": "B", "type": "dependency" }
+      ]
+    },
+    "cycles": []
+  },
+  "assertions": [],
+  "failure_modes": []
+}
